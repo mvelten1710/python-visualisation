@@ -1,0 +1,53 @@
+{
+    trace: {
+            totalSteps: 23;
+            steps: [
+                {
+                    threads: [
+                        {
+                            name: "MainThread",
+                            stackTrace: {
+                                totalFrames: 1,
+                                stackFrames: [
+                                    {
+                                        name: "<module>",
+                                        scope: {
+                                            totalScopes: 2,
+                                            scopes: [
+                                                {
+                                                    name: "Locals",
+                                                    variable: {
+                                                        totalVariables: 53,
+                                                        variables: [
+                                                            {
+                                                                name: "x",
+                                                                value: 5,
+                                                                type: "int"
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    name: "Globals",
+                                                    variable: {
+                                                        totalVariables: 10,
+                                                        variables: [
+                                                            {
+                                                                name: "x",
+                                                                value: 5,
+                                                                type: "int"
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                    ]
+                }
+            ];
+        }
+}

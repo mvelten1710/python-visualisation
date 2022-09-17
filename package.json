@@ -10,16 +10,42 @@
 		"Other"
 	],
 	"activationEvents": [
-        "onCommand:python-visualisation.helloWorld"
+        "onCommand:python-visualisation.startDebugSession"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "python-visualisation.helloWorld",
-				"title": "Hello World"
+				"command": "python-visualisation.startDebugSession",
+				"title": "Python Viz"
+			},
+			{
+				"command": "python-visualisation.stepOver",
+				"title": "Python Next"
 			}
-		]
+		],
+		"keybindings": [
+			{
+				"command": "python-visualisation.startDebugSession",
+				"key": "ctrl+alt+V"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+				  "command": "python-visualisation.startDebugSession",
+				  "when": "editorLangId == python && resourceExtname == .py",
+				  "group": "pythonDebug@1"
+				}
+			  ],
+			  "editor/title/run": [
+				{
+				  "command": "python-visualisation.startDebugSession",
+				  "when": "resourceExtname == .py",
+				  "group": "pythonDebug@10"
+				}
+			  ]
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
