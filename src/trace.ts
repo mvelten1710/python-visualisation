@@ -1,9 +1,17 @@
-class Trace {
-    language: string = 'none';
-    variables: Variable[] = [];
-}
+type Trace = {
+    type: string
+    length: number,
+    items: [
+        {
+            name: string,
+            trace: Trace | Variable
+        }
+    ]
+};
 
-class Variable {
-    name: string = 'none';
-    value: any;
-}
+type Variable = {
+    type: string,
+    value: string | number | boolean
+};
+
+type Thread = {id: number, name: string};

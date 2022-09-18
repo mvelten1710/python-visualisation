@@ -1,43 +1,39 @@
 {
     trace: {
-            totalSteps: 23;
-            steps: [
-                {
-                    threads: [
+        type: 'Thread',
+        length: 2,
+        items: [
+            {
+                name: 'MainThread',
+                trace: {
+                    type: 'StackFrame',
+                    length: 10,
+                    items: [
                         {
-                            name: "MainThread",
-                            stackTrace: {
-                                totalFrames: 1,
-                                stackFrames: [
+                            name: '<module>',
+                            trace: {
+                                type: 'Scope',
+                                length: 2,
+                                items: [
                                     {
-                                        name: "<module>",
-                                        scope: {
-                                            totalScopes: 2,
-                                            scopes: [
+                                        name: 'Locals',
+                                        trace: {
+                                            type: 'Variables'
+                                            length: 23,
+                                            items: []
+                                        }
+                                    },
+                                    {
+                                        name: 'Globals',
+                                        trace: {
+                                            type: 'Variables'
+                                            length: 23,
+                                            items: [
                                                 {
-                                                    name: "Locals",
-                                                    variable: {
-                                                        totalVariables: 53,
-                                                        variables: [
-                                                            {
-                                                                name: "x",
-                                                                value: 5,
-                                                                type: "int"
-                                                            }
-                                                        ]
-                                                    }
-                                                },
-                                                {
-                                                    name: "Globals",
-                                                    variable: {
-                                                        totalVariables: 10,
-                                                        variables: [
-                                                            {
-                                                                name: "x",
-                                                                value: 5,
-                                                                type: "int"
-                                                            }
-                                                        ]
+                                                    name: 'x'
+                                                    trace: {
+                                                        type: 'int',
+                                                        value: 5
                                                     }
                                                 }
                                             ]
@@ -45,9 +41,10 @@
                                     }
                                 ]
                             }
-                        },
+                        }
                     ]
                 }
-            ];
-        }
+            }
+        ]
+    }
 }
