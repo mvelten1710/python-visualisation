@@ -1,17 +1,17 @@
 type Trace = {
-    type: string
-    length: number,
-    items: [
-        {
-            name: string,
-            trace: Trace | Variable
-        }
-    ]
-};
-
-type Variable = {
     type: string,
-    value: string | number | boolean
+    name: string,
+    value: string | number | boolean | Trace[]
 };
 
-type Thread = {id: number, name: string};
+type Thread = { id: number, name: string };
+type StackFrame = { 
+    column: number, 
+    id: number, 
+    line: number, 
+    name: string 
+};
+type Scope = {
+    name: string,
+    variablesReference: number,
+};

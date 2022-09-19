@@ -25,13 +25,14 @@ export class Session {
         if (!filename) { return; }
         await this.setBreakpoint(filename.fsPath);
         await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
+        const testTrace = await this.getInformation();
     }
 
     /**
      * Sets a breakpoint at the beginning of the file to be able to step through the code
      * @param filename the name of the main file
      */
-    async setBreakpoint(filename: string) {
+    private async setBreakpoint(filename: string) {
         const location = new vscode.Location(
             vscode.Uri.file(filename),
             new vscode.Position(0, 0),
@@ -42,27 +43,61 @@ export class Session {
         vscode.debug.addBreakpoints([sourceBreakpoint]);
     }
 
-    async continue() {
-
+    async next(threadId: number) {
+        await vscode.debug.activeDebugSession?.customRequest('next', { threadId: threadId });
     }
 
-    async getInformation() {
-        await this.getThreads(await vscode.debug.activeDebugSession?.customRequest('threads'));
+    private async getInformation(): Promise<Trace> {
+        const t = (await vscode.debug.activeDebugSession?.customRequest('threads')).threads;
+        // TODO: Create a List of Steps as long you can do a next, continue, stepIn, stepOut request
+        // Currently only making one step and retriving all information
+        await this.next(t[0].id);
+        return {
+            type: 'Trace',
+            name: 'Trace',
+            value: await this.getThreads(t)
+        };
     }
     
-    async getThreads(threads: Thread[]) {
+    // TODO: Look to simplify the following 4 functions, because they are pretty similar
 
+    private async getThreads(threads: Thread[]): Promise<Trace[]> {
+        if (!threads ||threads.length < 1) { return []; }
+        return await Promise.all(threads.map(async thread => {
+            return {
+                type: 'Thread',
+                name: thread.name,
+                value: await this.getFrames((await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: thread.id })).stackFrames)
+            };
+        }));
     }
 
-    async getFrames(threadId: number) {
-        const frames = await this.getFrames(threadId);
+    private async getFrames(stackFrames: StackFrame[]): Promise<Trace[]> {
+        if (!stackFrames ||stackFrames.length < 1) { return []; }
+        return await Promise.all(stackFrames.map(async frame => {
+            return {
+                type: 'StackFrame',
+                name: frame.name,
+                value: await this.getScopes((await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frame.id })).scopes)
+            };
+        }));
     }
 
-    async getScopes(frameId: number) {
-        const scopes = await this.getScopes(frameId);
+    private async getScopes(scopes: Scope[]): Promise<Trace[]> {
+        if (!scopes ||scopes.length < 1) { return []; }
+        return await Promise.all(scopes.map(async scope => { 
+            return {
+                type: 'Scope',
+                name: scope.name,
+                value: this.getVariables((await vscode.debug.activeDebugSession?.customRequest('variables', { variablesReference: scope.variablesReference })).variables)
+            };
+        }));
     }
 
-    async getVariables(variablesReference: number) {
-        const variables = await this.getVariables(variablesReference);
+    private getVariables(variables: Trace[]): Trace[] {
+        if (!variables ||variables.length < 1) { return []; }
+        return variables.map(variable => {
+            return variable;
+        });
     }
 }
