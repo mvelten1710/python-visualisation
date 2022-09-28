@@ -1,50 +1,8 @@
-{
-    trace: {
-        type: 'Thread',
-        length: 2,
-        items: [
-            {
-                name: 'MainThread',
-                trace: {
-                    type: 'StackFrame',
-                    length: 10,
-                    items: [
-                        {
-                            name: '<module>',
-                            trace: {
-                                type: 'Scope',
-                                length: 2,
-                                items: [
-                                    {
-                                        name: 'Locals',
-                                        trace: {
-                                            type: 'Variables'
-                                            length: 23,
-                                            items: []
-                                        }
-                                    },
-                                    {
-                                        name: 'Globals',
-                                        trace: {
-                                            type: 'Variables'
-                                            length: 23,
-                                            items: [
-                                                {
-                                                    name: 'x'
-                                                    trace: {
-                                                        type: 'int',
-                                                        value: 5
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            }
-        ]
-    }
-}
+[
+    { varId: '<module>_x', kind: 'varAssign', varName: 'x', value: 5 },
+    { varId: '<module>_bar', kind: 'funDef', funName: 'bar'},
+    { kind: 'funCall', funName: 'bar', args: [5] },
+    { varId: 'bar_x', kind: 'varAssign', varName: 'x', value: 6 },
+    { kind: 'return', value: 'none' },
+    { varId: '<module>_x', kind: 'varAssign', varName: 'x', value: 6 }
+]

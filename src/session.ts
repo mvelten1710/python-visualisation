@@ -4,6 +4,15 @@ import { match, P } from 'ts-pattern';
 
 
 export class Session {
+
+    private _prevVars: Variable[];
+    private trace: Trace;
+
+    constructor() {
+        this._prevVars = [];
+        this.trace = new Set<TraceElem>();
+    }
+
     /**
      * Returns a basic debug configuration
      * @param file the file to be debugged
@@ -25,7 +34,49 @@ export class Session {
         if (!filename) { return; }
         await this.setBreakpoint(filename.fsPath);
         await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
-        const testTrace = await this.getInformation();
+        this.retrieveTrace();
+    }
+
+    private async retrieveTrace() {
+        while (vscode.debug.activeDebugSession) {
+            const threads = (await vscode.debug.activeDebugSession.customRequest('threads')).threads as Thread[];
+            await this.next(threads[0].id);
+            const traceElem = await this.getTraceElem(threads[0].id);
+            if (traceElem) {
+                this.trace.add(traceElem);
+                console.log(this.trace);
+            }
+        }
+    }
+
+    private async getTraceElem(threadId: number): Promise<TraceElem | undefined> {
+        const frames = (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: threadId })).stackFrames as StackFrame[];
+        const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frames[0].id })).scopes as Scope[];
+        const variables = ((await vscode.debug.activeDebugSession?.customRequest('variables', { variablesReference: scopes[0].variablesReference})).variables as Variable[]).map(v => {
+            return {
+                id: `${frames[0].name}_${v.name}`,
+                name: v.name,
+                value: v.value,
+                type: v.type,
+                variablesReference: v.variablesReference,
+            };
+        }) as Variable[];
+        return await this.getCurrentStatement(variables[variables.length-1]);
+    }
+
+    private async getCurrentStatement(variable: Variable): Promise<TraceElem | undefined> {
+        if (variable.name.includes('(return)')) {
+            return {
+                kind: 'returnCall',
+                value: variable.value
+            } as ReturnCall;
+        }
+        return {
+            kind: 'varAssign',
+            varId: variable.id,
+            varName: variable.name,
+            value: variable.value
+        } as VarAssign;
     }
 
     /**
@@ -42,62 +93,8 @@ export class Session {
         //vscode.debug.removeBreakpoints([]);
         vscode.debug.addBreakpoints([sourceBreakpoint]);
     }
-
-    async next(threadId: number) {
-        await vscode.debug.activeDebugSession?.customRequest('next', { threadId: threadId });
-    }
-
-    private async getInformation(): Promise<Trace> {
-        const t = (await vscode.debug.activeDebugSession?.customRequest('threads')).threads;
-        // TODO: Create a List of Steps as long you can do a next, continue, stepIn, stepOut request
-        // Currently only making one step and retriving all information
-        await this.next(t[0].id);
-        return {
-            type: 'Trace',
-            name: 'Trace',
-            value: await this.getThreads(t)
-        };
-    }
     
-    // TODO: Look to simplify the following 4 functions, because they are pretty similar
-
-    private async getThreads(threads: Thread[]): Promise<Trace[]> {
-        if (!threads ||threads.length < 1) { return []; }
-        return await Promise.all(threads.map(async thread => {
-            return {
-                type: 'Thread',
-                name: thread.name,
-                value: await this.getFrames((await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: thread.id })).stackFrames)
-            };
-        }));
-    }
-
-    private async getFrames(stackFrames: StackFrame[]): Promise<Trace[]> {
-        if (!stackFrames ||stackFrames.length < 1) { return []; }
-        return await Promise.all(stackFrames.map(async frame => {
-            return {
-                type: 'StackFrame',
-                name: frame.name,
-                value: await this.getScopes((await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frame.id })).scopes)
-            };
-        }));
-    }
-
-    private async getScopes(scopes: Scope[]): Promise<Trace[]> {
-        if (!scopes ||scopes.length < 1) { return []; }
-        return await Promise.all(scopes.map(async scope => { 
-            return {
-                type: 'Scope',
-                name: scope.name,
-                value: this.getVariables((await vscode.debug.activeDebugSession?.customRequest('variables', { variablesReference: scope.variablesReference })).variables)
-            };
-        }));
-    }
-
-    private getVariables(variables: Trace[]): Trace[] {
-        if (!variables ||variables.length < 1) { return []; }
-        return variables.map(variable => {
-            return variable;
-        });
+    private async next(threadId: number) {
+        await vscode.debug.activeDebugSession?.customRequest('stepIn', { threadId: threadId });
     }
 }
