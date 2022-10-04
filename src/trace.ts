@@ -18,10 +18,9 @@ type ReturnCall = {
 };
 type Value = string | number | boolean;
 
-
 // Debug Adapter Datatypes
 type Thread = { id: number, name: string };
-type StackFrame = { 
+type StackFrame = {
     column: number, 
     id: number, 
     line: number, 
@@ -36,5 +35,5 @@ type Variable = {
     name: string,
     value:string,
     type: string,
-    variablesReference: number,
+    variablesReference: number | Variable[],
 };
