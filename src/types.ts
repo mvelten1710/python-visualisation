@@ -1,4 +1,4 @@
-// Trace Datatypes
+// Event Types for the Frontend
 type EventTrace = Set<EventTraceElem>;
 type EventTraceElem = VarAssign | FunCall | ReturnCall;
 type VarAssign = {
@@ -18,19 +18,19 @@ type ReturnCall = {
 };
 type Value = string | number | boolean;
 
-// State Type for the Backend
+// State Types for the Backend
 type StateTrace = Array<StateTraceElem>;
 type StateTraceElem = {
-    // Line of the executed code
+    // Line of the executed code (could be useful for visualization)
     line: number,
     // Info for the frontend converter
     event: string,
     // Current Scope/Function/Frame
     scopeName: string,
     // All objects and functions in the global scope
-    globals: Array<DVar | DFun>,
+    globals: Array<DVar | Func | Structured>,
     // All object and functions in the local scope (probably in a function)
-    locals: Array<DVar | DFun>,
+    locals: Array<DVar | Func | Structured>,
 };
 
 type DVar = {
@@ -38,9 +38,16 @@ type DVar = {
     value: string,
 };
 
-type DFun = {
+type Func = {
     name: string,
-    returnValue: string,
+    // Vars are either the parameters of a function
+    params: Array<DVar>,
+    returnValue: string
+};
+
+type Structured = {
+    name: string,
+    vars: Array<DVar>,
 };
 
 /**
