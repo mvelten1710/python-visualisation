@@ -4,11 +4,11 @@ export class Session {
 
     // string = StackFrame, Variable[] = previous vars in given stackframe
     private _prevVars: Map<number, Variable[]>;
-    private trace: Trace;
+    private trace: EventTrace;
 
     constructor() {
         this._prevVars = new Map<number, Variable[]>();
-        this.trace = new Set<TraceElem>();
+        this.trace = new Set<EventTraceElem>();
     }
 
     /**
@@ -51,7 +51,7 @@ export class Session {
         }
     }
 
-    private async getTraceElem(threadId: number): Promise<TraceElem | undefined> {
+    private async getTraceElem(threadId: number): Promise<EventTraceElem | undefined> {
         const frames = (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: threadId })).stackFrames as StackFrame[];
         const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frames[0].id })).scopes as Scope[];
         const variables = await this.getVariables(frames[0].name, scopes[0].variablesReference);
@@ -107,7 +107,7 @@ export class Session {
         return statement[0];
     }
 
-    private getStatement(variable: Variable): TraceElem | undefined {
+    private getStatement(variable: Variable): EventTraceElem | undefined {
         if (!!variable) {
             if (variable.name.includes('(return)')) {
                 return {

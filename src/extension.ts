@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { Commands } from './constants';
-import { Session } from './session';
+import { Session } from './backend/session';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
