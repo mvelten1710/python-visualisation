@@ -32,8 +32,7 @@ export class Session {
         if (!filename) { return; }
         await this.setBreakpoint(filename.fsPath);
         await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
-        const capabilities = await vscode.debug.activeDebugSession?.customRequest("initialize", { supportsVariableType: true, supportsRunInTerminalRequest: true, supportsSingleThreadExecutionRequests: true });
-        this.retrieveTrace();
+        //this.retrieveTrace();
     }
 
     private async retrieveTrace() {
