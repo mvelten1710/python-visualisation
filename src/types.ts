@@ -1,6 +1,6 @@
 // Event Types for the Frontend
-type EventTrace = Set<EventTraceElem>;
-type EventTraceElem = VarAssign | FunCall | ReturnCall;
+type FrontendTrace = Array<FrontendTraceElem>;
+type FrontendTraceElem = VarAssign | FunCall | ReturnCall;
 type VarAssign = {
     kind: 'varAssign',
     varId: string,
@@ -19,26 +19,26 @@ type ReturnCall = {
 type Value = string | number | boolean;
 
 // State Types for the Backend
-type StateTrace = Array<StateTraceElem>;
-type StateTraceElem = {
-    // Useful for the frontend to know what happened
-    event: string,
-    // Current Scope/Function/Frame
+type BackendTrace = Array<BackendTraceElem>;
+type BackendTraceElem = {
+    //line: number,
+    //event: string,
+    // Current Scope/Function/Frame in that the event happend
     scopeName: string,
-    // All objects and functions in the global scope
+    // Overview of all objects and functions in the global scope
     globals: Array<Var | Func | Structured>,
-    // All object and functions in the local scope (probably in a function)
+    // Overview of all object and functions in the local scope (probably in a function)
     locals: Array<Var | Func | Structured>,
 };
 
 type Var = {
     name: string,
-    value: string,
+    value: Value | Var,
 };
 
 type Func = {
     name: string,
-    // Vars are either the parameters of a function
+    // Vars are the parameters of a function
     params: Array<Var>,
     returnValue: string
 };

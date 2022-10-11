@@ -4,13 +4,13 @@ import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { Commands } from './constants';
 import { Session } from './backend/session';
+import { generateDebugTrace } from './backend/generate_debugger_trace';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand(Commands.START_DEBUG, async (file?: Uri) => {
-		const session = new Session();
-		session.startDebugging(file);
+		generateDebugTrace(file);
 	});
 	context.subscriptions.push(disposable);
 }

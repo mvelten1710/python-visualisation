@@ -1,8 +1,0 @@
-[
-    { varId: '<module>_x', kind: 'varAssign', varName: 'x', value: 5 },
-    { varId: '<module>_bar', kind: 'funDef', funName: 'bar'},
-    { kind: 'funCall', funName: 'bar', args: [5] },
-    { varId: 'bar_x', kind: 'varAssign', varName: 'x', value: 6 },
-    { kind: 'return', value: 'none' },
-    { varId: '<module>_x', kind: 'varAssign', varName: 'x', value: 6 }
-]

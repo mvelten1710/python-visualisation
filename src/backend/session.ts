@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
+import { Variables } from '../constants';
 
 export class Session {
 
     // string = StackFrame, Variable[] = previous vars in given stackframe
     private _prevVars: Map<number, Variable[]>;
-    private trace: EventTrace;
+    private stateTrace: BackendTrace;
 
     constructor() {
         this._prevVars = new Map<number, Variable[]>();
-        this.trace = new Set<EventTraceElem>();
+        this.stateTrace = new Array<BackendTraceElem>();
     }
 
     /**
@@ -28,12 +29,58 @@ export class Session {
      * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
      * @param filename the name of the main file that needs to be debugged for visualization later on
      */
-    async startDebugging(filename: vscode.Uri | undefined) {
-        if (!filename) { return; }
+    async startDebugging(filename: vscode.Uri | undefined): Promise<boolean> {
+        if (!filename) { return !!filename; }
         await this.setBreakpoint(filename.fsPath);
-        await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
-        //this.retrieveTrace();
+        return await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
     }
+
+    // public async generateBackendTrace() {
+    //     while (vscode.debug.activeDebugSession) {
+    //         const threads = (await vscode.debug.activeDebugSession.customRequest('threads')).threads as Thread[];
+    //         await this.next(threads[0].id);
+    //         // FIX: Thread is not available after exiting function without delay
+    //         // maybe an await is missing!
+    //         await new Promise(resolve => setTimeout(resolve, 1));
+    //         const traceElem = await this.getStateTraceElem(threads[0].id);
+    //         if (traceElem) {
+    //             this.stateTrace.push(traceElem);
+    //             console.log(this.stateTrace);
+    //         }
+    //     }
+    // }
+
+    // private async getStateTraceElem(threadId: number): Promise<BackendTraceElem> {
+    //     const frames = (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: threadId })).stackFrames as StackFrame[];
+    //     const currentFrame = frames[0];
+    //     const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: currentFrame.id })).scopes as Scope[];
+    //     const scopeName = currentFrame.name;
+    //     const locals = await Promise.all((await this.variablesRequest(scopes[0].variablesReference)).map(async v => this.convertVariable(v))); // Locals
+    //     const globals = await Promise.all((await this.variablesRequest(scopes[1].variablesReference)).map(async v => this.convertVariable(v))); // Globals
+    //     return {
+    //         scopeName: scopeName,
+    //         globals: globals,
+    //         locals: locals
+    //     } as BackendTraceElem;
+    // }
+
+    // private async convertVariable(variable: Variable): Promise<Var | Func | Structured | undefined> {
+    //     switch (variable.name) {
+    //         case Variables.SPECIAL:
+    //             // The special variables have no need for now in the visualization
+    //             return;
+    //         case Variables.FUNCTION:
+    //             // The function variables need one extra variables request to get the functions
+    //             const functions = (await this.variablesRequest(variable.variablesReference));
+    //             return {} as Var;
+    //             break;
+    //         default:
+    //             // Primitive Variable or Structured Object
+    //             // If it is a structured object we need to make additional variable requests
+    //             return {} as Var;
+    //     }
+    //     return {} as Var;
+    // }
 
     private async retrieveTrace() {
         while (vscode.debug.activeDebugSession) {
@@ -44,13 +91,13 @@ export class Session {
             await new Promise(resolve => setTimeout(resolve, 1));
             const traceElem = await this.getTraceElem(threads[0].id);
             if (traceElem) {
-                this.trace.add(traceElem);
-                console.log(this.trace);
+                //this.stateTrace.add(traceElem);
+                console.log(this.stateTrace);
             }
         }
     }
 
-    private async getTraceElem(threadId: number): Promise<EventTraceElem | undefined> {
+    private async getTraceElem(threadId: number): Promise<FrontendTraceElem | undefined> {
         const frames = (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: threadId })).stackFrames as StackFrame[];
         const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frames[0].id })).scopes as Scope[];
         const variables = await this.getVariables(frames[0].name, scopes[0].variablesReference);
@@ -69,7 +116,7 @@ export class Session {
             name: variable.name,
             value: variable.value,
             type: variable.type,
-            variablesReference: 
+            variablesReference:
                 typeof variable.variablesReference === 'number' && variable.variablesReference > 0 
                     ? await this.getVariables(frame, variable.variablesReference) : variable.variablesReference,
         } as Variable;
@@ -106,7 +153,7 @@ export class Session {
         return statement[0];
     }
 
-    private getStatement(variable: Variable): EventTraceElem | undefined {
+    private getStatement(variable: Variable): FrontendTraceElem | undefined {
         if (!!variable) {
             if (variable.name.includes('(return)')) {
                 return {
@@ -145,12 +192,15 @@ export class Session {
             new vscode.Position(0, 0),
         );
         const sourceBreakpoint = new vscode.SourceBreakpoint(location);
-        // TODO: Clear all previously set breakpoints
-        //vscode.debug.removeBreakpoints([]);
         vscode.debug.addBreakpoints([sourceBreakpoint]);
     }
     
     private async next(threadId: number) {
         await vscode.debug.activeDebugSession?.customRequest('stepIn', { threadId: threadId });
+    }
+
+    private async variablesRequest(id: number): Promise<Variable[]> {
+        return ((await vscode.debug.activeDebugSession?.customRequest(
+            'variables', { variablesReference: id })).variables as Variable[]);
     }
 }
