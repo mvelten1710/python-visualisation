@@ -5,49 +5,64 @@ type VarAssign = {
     kind: 'varAssign',
     varId: string,
     varName: string,
-    value: Value
+    value: Primitive
 };
 type FunCall = {
     kind: 'funCall'
     funName: string,
-    args: Array<Value>
+    args: Array<Primitive>
 };
 type ReturnCall = {
     kind: 'returnCall'
-    value: Value
+    value: Primitive
 };
-type Value = string | number | boolean;
 
+// ############################################################################################
+type Primitive = string | number | boolean;
+type StructuredObject = Var | Fun | Obj;
+
+// ############################################################################################
 // State Types for the Backend
 type BackendTrace = Array<BackendTraceElem>;
 type BackendTraceElem = {
-    //line: number,
-    //event: string,
+    line: number,
     // Current Scope/Function/Frame in that the event happend
     scopeName: string,
     // Overview of all objects and functions in the global scope
-    globals: Array<Var | Func | Structured>,
-    // Overview of all object and functions in the local scope (probably in a function)
-    locals: Array<Var | Func | Structured>,
+    globals: Array<StructuredObject>,
+    // In stack are functions and calls 
+    stack: Array<StackElem>
+    // In heap are value objects
+    heap: Map<string, HeapElem>
 };
+// ############################################################################################
 
 type Var = {
     name: string,
-    value: Value | Var,
+    value: Primitive,
 };
-
-type Func = {
+type Fun = {
     name: string,
-    // Vars are the parameters of a function
-    params: Array<Var>,
-    returnValue: string
+    params: Array<StructuredObject>,
+    returnValue: string,
 };
-
-type Structured = {
+type Obj = {
     name: string,
-    vars: Array<Var>,
+    properties: Array<StructuredObject>,
 };
-
+// ############################################################################################
+type StackElem = {
+    funName: string,
+    scopeName: string,
+    locals: Array<Var>,
+};
+// ############################################################################################
+type HeapElem = {
+    type: string,
+    name: string,
+    value: StructuredObject,
+};
+// ############################################################################################
 // Debug Adapter Datatypes
 type Thread = { id: number, name: string };
 type StackFrame = {
@@ -65,5 +80,5 @@ type Variable = {
     name: string,
     value:string,
     type: string,
-    variablesReference: number | Variable[],
+    variablesReference: number,
 };

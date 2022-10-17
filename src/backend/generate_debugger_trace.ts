@@ -8,7 +8,7 @@ export async function generateDebugTrace(filename: vscode.Uri | undefined) {
      }
     const session = new Session();
     if (await session.startDebugging(filename)) {
-        //await session.generateBackendTrace();
+        await session.generateBackendTrace();
     } else {
         console.warn('Debug Session could not be started!\nStopping...');
     }
