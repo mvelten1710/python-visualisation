@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
 import { Variables } from '../constants';
+import * as fs from 'fs';
+
 
 export class Session {
     private stateTrace: BackendTrace;
-    private prevLine: number;
 
     constructor() {
         this.stateTrace = new Array<BackendTraceElem>();
-        this.prevLine = -1;
     }
 
     /**
@@ -35,87 +35,92 @@ export class Session {
 
     public async generateBackendTrace() {
         while (vscode.debug.activeDebugSession) {
-            const threads = (await vscode.debug.activeDebugSession.customRequest('threads')).threads as Thread[];
+            const threads = await this.threadsRequest();
+            if (!threads.length) { break; }
             // FIX: Thread is not available after exiting function without delay
             // maybe an await is missing!
             // await new Promise(resolve => setTimeout(resolve, 1));
-            if (this.prevLine === -1) {
-                await this.setPrevLine(threads[0].id, -1);
-            } else {
-                const traceElem = await this.getStateTraceElem(threads[0].id);
-                if (traceElem) {
-                    this.stateTrace.push(traceElem);
-                    console.log(this.stateTrace);
-                }
-                await this.next(threads[0].id);
+            const traceElem = await this.getStateTraceElem(threads[0].id);
+            if (traceElem) {
+                this.stateTrace.push(traceElem);
             }
+            await this.next(threads[0].id);
         }
+        console.log(JSON.stringify(this.stateTrace, null, 2));
     }
 
     private async getStateTraceElem(threadId: number): Promise<BackendTraceElem> {
         // Extract line and scopeName from current StackFrame
-        const stackFrames = await this.getStackFrames(threadId);
-        const line = this.prevLine;
+        const stackFrames = await this.stackFramesRequest(threadId);
+        const line = stackFrames[0].line;
         const scopeName = stackFrames[0].name;
-        await this.setPrevLine(undefined, line);
         
         // Extract only the variableReference for Variables
-        const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: stackFrames[0].id })).scopes as Scope[];
+        const scopes = await this.scopesRequest(stackFrames[0].id);
 
         // Retrieve all variables in global Frame/Scope
-        const globalVars = (await this.variablesRequest(scopes[scopes.length-1].variablesReference));
-        // Get Globals (Variables, Functions or Objects) and convert them to StructedObject
+        // Then get Globals (Variables, Functions or Objects) and convert them to StructedObject
+        const globalVars = (await this.variablesRequest(scopes[scopes.length-1].variablesReference))
+                                .filter(f => !f.name.includes('special variables'));
         const globals = await Promise.all(globalVars.map(async v => this.getGlobals(v)));
 
         // Get Stack related objects and convert them to StackElem's
-        if (stackFrames.length > 1) {
-
-        }
+        // As soon as we are in the function we can populate the stack property
+        const stack = await this.getFunctions(stackFrames);
 
         // Get Heap related objects and convert them to HeapElem's
-
+        const heap = {} as Map<string, HeapElem>;
         
         // Get everthing together to return a BackendTraceElem
         return {
             line: line,
             scopeName: scopeName,
             globals: globals,
-            stack: await this.getFunctions(),
-            heap: {},
+            stack: stack,
+            heap: heap,
         } as BackendTraceElem;
     }
 
-    private async setPrevLine(id: number | undefined, line: number) {
-        this.prevLine = id ? (await this.getStackFrames(id))[0].line : line;
+    private async getFunctions(stackFrames: Array<StackFrame>): Promise<Array<StackElem>> {
+        return await Promise.all(
+            stackFrames.map(
+                async sf =>
+                    ({
+                        funName: sf.name,
+                        frameId: sf.id,
+                        locals: (await this.variablesRequest((await this.scopesRequest(sf.id))[0].variablesReference))
+                    } as StackElem)
+            )
+        );
     }
 
-    private async getStackFrames(id: number): Promise<StackFrame[]> {
-        return (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: id })).stackFrames as StackFrame[]; 
-    }
-
-    private async getFunctions(): Promise<Array<StackElem>> {
-
-        return [];
-    }
-
-    private async getGlobals(variable: Variable): Promise<StructuredObject | undefined> {
+    private async getGlobals(variable: Variable): Promise<StructuredObject> {
         switch (variable.name) {
             case Variables.SPECIAL:
                 // The special variables have no need for now in the visualization
-                return;
+                return { 
+                    name: variable.name,
+                    value: variable.value,
+                 } as Var;
             case Variables.FUNCTION:
                 // The function variables need one extra variables request to get the functions
                 const functions = (await this.variablesRequest(variable.variablesReference));
-                return {
-                    name: '',
-                    params: [],
-                    returnValue: '',
-                } as Fun;
+                return functions.map(f => ({ name: f.name, type: f.type } as Fun)) as Array<Fun>;
             default:
-                return {
-                    name: '',
-                    value: '',
-                } as Var;
+                if (variable.variablesReference > 0) {
+                    return {
+                        name: variable.name,
+                        properties: await Promise.all(
+                            (await this.variablesRequest(variable.variablesReference)).map(async v => await this.getGlobals(v)),
+                            )
+                    } as Obj;
+                } else {
+                    return {
+                        name: variable.name,
+                        value: variable.value,
+                    } as Var;
+                }
+
         }
     }
 
@@ -236,8 +241,23 @@ export class Session {
         await vscode.debug.activeDebugSession?.customRequest('stepIn', { threadId: threadId });
     }
 
-    private async variablesRequest(id: number): Promise<Variable[]> {
+    private async variablesRequest(id: number): Promise<Array<Variable>> {
         return ((await vscode.debug.activeDebugSession?.customRequest(
-            'variables', { variablesReference: id })).variables as Variable[]);
+            'variables', { variablesReference: id })).variables as Array<Variable>);
+    }
+
+    private async scopesRequest(id: number): Promise<Array<Scope>> {
+        return ((await vscode.debug.activeDebugSession?.customRequest(
+            'scopes', { frameId: id })).scopes as Array<Scope>);
+    }
+
+    private async stackFramesRequest(id: number) : Promise<Array<StackFrame>> {
+        return ((await vscode.debug.activeDebugSession?.customRequest(
+            'stackTrace', { threadId: id })).stackFrames as Array<StackFrame>);
+    }
+
+    private async threadsRequest(): Promise<Array<Thread>> {
+        return ((await vscode.debug.activeDebugSession?.customRequest(
+            'threads')).threads as Array<Thread>);
     }
 }

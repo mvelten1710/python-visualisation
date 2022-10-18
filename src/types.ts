@@ -19,7 +19,7 @@ type ReturnCall = {
 
 // ############################################################################################
 type Primitive = string | number | boolean;
-type StructuredObject = Var | Fun | Obj;
+type StructuredObject = Var | Array<Fun> | Obj;
 
 // ############################################################################################
 // State Types for the Backend
@@ -43,8 +43,7 @@ type Var = {
 };
 type Fun = {
     name: string,
-    params: Array<StructuredObject>,
-    returnValue: string,
+    type: string,
 };
 type Obj = {
     name: string,
@@ -53,8 +52,8 @@ type Obj = {
 // ############################################################################################
 type StackElem = {
     funName: string,
-    scopeName: string,
-    locals: Array<Var>,
+    frameId: number,
+    locals: Array<StructuredObject>,
 };
 // ############################################################################################
 type HeapElem = {
