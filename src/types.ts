@@ -18,10 +18,6 @@ type ReturnCall = {
 };
 
 // ############################################################################################
-type Primitive = string | number | boolean;
-type StructuredObject = Var | Array<Fun> | Obj;
-
-// ############################################################################################
 // State Types for the Backend
 type BackendTrace = Array<BackendTraceElem>;
 type BackendTraceElem = {
@@ -29,38 +25,37 @@ type BackendTraceElem = {
     // Current Scope/Function/Frame in that the event happend
     scopeName: string,
     // Overview of all objects and functions in the global scope
-    globals: Array<StructuredObject>,
+    globals: Map<string, Value>,
     // In stack are functions and calls 
     stack: Array<StackElem>
     // In heap are value objects
-    heap: Map<string, HeapElem>
+    heap: Map<Address, HeapValue>
 };
-// ############################################################################################
 
-type Var = {
-    name: string,
-    value: Primitive,
-};
-type Fun = {
-    name: string,
-    type: string,
-};
-type Obj = {
-    name: string,
-    properties: Array<StructuredObject>,
-};
-// ############################################################################################
+type Primitive = string | number | boolean;
+
+type Address = number;
+
+type Value = { type: 'int', value: number } 
+           | { type: 'float', value: number }
+           | { type: 'ref', value: Address };
+
 type StackElem = {
     funName: string,
     frameId: number,
-    locals: Array<StructuredObject>,
+    locals: Map<string, Value>,
 };
-// ############################################################################################
-type HeapElem = {
-    type: string,
-    name: string,
-    value: StructuredObject,
-};
+
+type HeapValue = { type: 'list', value: Array<Value> }
+               | { type: 'tuple', value: Array<Value> }
+               | { type: 'string', value: string }
+               | { type: 'dict', value: Map<any, Value> }
+               | { type: 'object', value: ObjectValue };
+
+type ObjectValue = { 
+    typeName: string,
+    properties: Map<string, Value>
+ };
 // ############################################################################################
 // Debug Adapter Datatypes
 type Thread = { id: number, name: string };

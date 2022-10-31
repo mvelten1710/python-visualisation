@@ -1,7 +1,4 @@
 import * as vscode from 'vscode';
-import { Variables } from '../constants';
-import * as fs from 'fs';
-
 
 export class Session {
     private stateTrace: BackendTrace;
@@ -36,6 +33,7 @@ export class Session {
     public async generateBackendTrace() {
         while (vscode.debug.activeDebugSession) {
             const threads = await this.threadsRequest();
+
             if (!threads.length) { break; }
             // FIX: Thread is not available after exiting function without delay
             // maybe an await is missing!
@@ -52,6 +50,7 @@ export class Session {
     private async getStateTraceElem(threadId: number): Promise<BackendTraceElem> {
         // Extract line and scopeName from current StackFrame
         const stackFrames = await this.stackFramesRequest(threadId);
+
         const line = stackFrames[0].line;
         const scopeName = stackFrames[0].name;
         
@@ -59,17 +58,15 @@ export class Session {
         const scopes = await this.scopesRequest(stackFrames[0].id);
 
         // Retrieve all variables in global Frame/Scope
-        // Then get Globals (Variables, Functions or Objects) and convert them to StructedObject
+        // Then get Globals (Variables, Functions or Objects)
         const globalVars = (await this.variablesRequest(scopes[scopes.length-1].variablesReference))
-                                .filter(f => !f.name.includes('special variables'));
-        const globals = await Promise.all(globalVars.map(async v => this.getGlobals(v)));
+                                .filter(f => !f.name.includes('special variables') && f.type.length > 0);
 
-        // Get Stack related objects and convert them to StackElem's
-        // As soon as we are in the function we can populate the stack property
-        const stack = await this.getFunctions(stackFrames);
+        const globals = this.generateGlobals(globalVars);
 
-        // Get Heap related objects and convert them to HeapElem's
-        const heap = {} as Map<string, HeapElem>;
+        const stack = await this.generateStack(stackFrames);
+
+        const heap = await this.generateHeap(stackFrames);
         
         // Get everthing together to return a BackendTraceElem
         return {
@@ -81,148 +78,93 @@ export class Session {
         } as BackendTraceElem;
     }
 
-    private async getFunctions(stackFrames: Array<StackFrame>): Promise<Array<StackElem>> {
-        return await Promise.all(
-            stackFrames.map(
-                async sf =>
-                    ({
-                        funName: sf.name,
-                        frameId: sf.id,
-                        locals: (await this.variablesRequest((await this.scopesRequest(sf.id))[0].variablesReference))
-                    } as StackElem)
-            )
-        );
-    }
-
-    private async getGlobals(variable: Variable): Promise<StructuredObject> {
-        switch (variable.name) {
-            case Variables.SPECIAL:
-                // The special variables have no need for now in the visualization
-                return { 
-                    name: variable.name,
-                    value: variable.value,
-                 } as Var;
-            case Variables.FUNCTION:
-                // The function variables need one extra variables request to get the functions
-                const functions = (await this.variablesRequest(variable.variablesReference));
-                return functions.map(f => ({ name: f.name, type: f.type } as Fun)) as Array<Fun>;
+    private extractValue(variable: Variable): Value {
+        switch (variable.type) {
+            case 'int':
+                return {
+                    type: 'int',
+                    value: parseInt(variable.value)
+                };
+                case 'float':
+                    return {
+                        type: 'float',
+                        value: parseFloat(variable.value)
+                    };
             default:
-                if (variable.variablesReference > 0) {
-                    return {
-                        name: variable.name,
-                        properties: await Promise.all(
-                            (await this.variablesRequest(variable.variablesReference)).map(async v => await this.getGlobals(v)),
-                            )
-                    } as Obj;
-                } else {
-                    return {
-                        name: variable.name,
-                        value: variable.value,
-                    } as Var;
-                }
-
+                return {
+                    type: 'ref',
+                    value: variable.variablesReference
+                };
         }
     }
 
-    // private async retrieveTrace() {
-    //     while (vscode.debug.activeDebugSession) {
-    //         const threads = (await vscode.debug.activeDebugSession.customRequest('threads')).threads as Thread[];
-    //         await this.next(threads[0].id);
-    //         // FIX: Thread is not available after exiting function without delay
-    //         // maybe an await is missing!
-    //         await new Promise(resolve => setTimeout(resolve, 1));
-    //         const traceElem = await this.getTraceElem(threads[0].id);
-    //         if (traceElem) {
-    //             //this.stateTrace.add(traceElem);
-    //             console.log(this.stateTrace);
-    //         }
-    //     }
-    // }
+    private extractHeapValue(variable: Variable): HeapValue {
+        switch (variable.type) {
+            case 'list':
+                return {
+                    type: 'list',
+                    value: JSON.parse(variable.value)
+                };
+            case 'tuple':
+                return {
+                    type: 'tuple',
+                    value: JSON.parse(variable.value)
+                };
+            case 'string':
+                return {
+                    type: 'string',
+                    value: variable.value
+                };
+            case 'dict':
+                return {
+                    type: 'dict',
+                    value: JSON.parse(variable.value)
+                };
+            default:
+                return {
+                    type: 'object',
+                    value: JSON.parse(variable.value)
+                };
+        }
+    }
 
-    // private async getTraceElem(threadId: number): Promise<FrontendTraceElem | undefined> {
-    //     const frames = (await vscode.debug.activeDebugSession?.customRequest('stackTrace', { threadId: threadId })).stackFrames as StackFrame[];
-    //     const scopes = (await vscode.debug.activeDebugSession?.customRequest('scopes', { frameId: frames[0].id })).scopes as Scope[];
-    //     const variables = await this.getVariables(frames[0].name, scopes[0].variablesReference);
-    //     return this.getStatement(this.filterVariables(frames[0].id, variables));
-    // }
+    private generateGlobals(globalVars: Array<Variable>): Map<string, Value> {
+        return new Map(
+            globalVars.map(v => {
+                return [v.name, this.extractValue(v)];
+            })
+        );
+    }
 
-    // private async getVariables(frame: string, varRef: number): Promise<Variable[]> {
-    //     const variables = ((await vscode.debug.activeDebugSession?.customRequest(
-    //         'variables', { variablesReference: varRef })).variables as Variable[]).filter(variable => !variable.name.includes('special variables'));
-    //         return await Promise.all(variables.map(async variable => await this.convertToVariable(frame, variable))) as Variable[];
-    // }
+    private async generateStack(stackFrames: Array<StackFrame>): Promise<Array<StackElem>> {
+        return await Promise.all(
+            stackFrames.map(async sf => 
+                ({
+                    funName: sf.name,
+                    frameId: sf.id,
+                    locals: new Map(
+                        (await this.variablesRequest((await this.scopesRequest(sf.id))[0].variablesReference)).map(v => { 
+                            return [v.name, this.extractValue(v)];
+                        })
+                    )
+                } as StackElem)
+                )
+        );
+    }
 
-    // private async convertToVariable(frame: string, variable: Variable): Promise<Variable> {
-    //     return {
-    //         id: `${frame}_${variable.name}`,
-    //         name: variable.name,
-    //         value: variable.value,
-    //         type: variable.type,
-    //         variablesReference:
-    //             typeof variable.variablesReference === 'number' && variable.variablesReference > 0 
-    //                 ? await this.getVariables(frame, variable.variablesReference) : variable.variablesReference,
-    //     } as Variable;
-    // }
+    private async generateHeap(stackFrames: Array<StackFrame>): Promise<Map<Address, HeapValue>> {
+        let heap = new Map();
 
-    // /**
-    //  * Filters the array of current variables for new variables
-    //  * @param variables the array that needs to be filtered
-    //  * @return Returns the new filtered variable
-    //  */
-    // private filterVariables(frame: number, variables: Variable[]): Variable {
-    //     const prevVars = this._prevVars.get(frame);
-    //     const statement = variables.filter(elem => {
-    //         // Checking if variable is even there
-    //         const found = prevVars?.find(prev => prev.id === elem.id);
-    //         // Checking what is difference in the variable
-    //         if (found) {
-    //             // If variableReference is not a number, the found object is a function variables object
-    //             // With informations about the currently defined functions
-    //             if (typeof elem.variablesReference !== 'number' && typeof found.variablesReference !== 'number') {
-    //                 elem.variablesReference = elem.variablesReference.filter(
-    //                     fun => !(!!(found.variablesReference as Variable[]).find(fun2 => JSON.stringify(fun) === JSON.stringify(fun2)))
-    //                 );
-    //                 return elem.variablesReference.length > 0;
-    //             } else {
-    //                 return !(JSON.stringify(found) === JSON.stringify(elem));
-    //             }
-    //         } else {
-    //             return !(!!found);
-    //         }
-            
-    //     });
-    //     this._prevVars.set(frame, variables);
-    //     return statement[0];
-    // }
+        stackFrames.forEach(async sf => {
+            const scope = await this.scopesRequest(sf.id);
+            const vars = (await this.variablesRequest(scope[0].variablesReference)).filter(v => v.variablesReference > 0 && v.type.length > 0);
+            vars.forEach(v => {
+                heap = heap.set(v.variablesReference, this.extractHeapValue(v));
+            });
+        });
 
-    // private getStatement(variable: Variable): FrontendTraceElem | undefined {
-    //     if (!!variable) {
-    //         if (variable.name.includes('(return)')) {
-    //             return {
-    //                 kind: 'returnCall',
-    //                 value: variable.value
-    //             } as ReturnCall;
-    //         } else if (variable.name.includes('function variables')) {
-    //             if (typeof variable.variablesReference !== 'number') {
-    //                 if (variable.variablesReference.length > 0) {
-    //                     return {
-    //                         kind: 'varAssign',
-    //                         varId: variable.variablesReference[0].id,
-    //                         varName: variable.variablesReference[0].name,
-    //                         value: variable.variablesReference[0].value
-    //                     } as VarAssign;
-    //                 }
-    //             }
-    //         } else {
-    //             return {
-    //                 kind: 'varAssign',
-    //                 varId: variable.id,
-    //                 varName: variable.name,
-    //                 value: variable.value
-    //             } as VarAssign;
-    //         }
-    //     }
-    // }
+        return heap;
+    }
 
     /**
      * Sets a breakpoint at the beginning of the file to be able to step through the code
