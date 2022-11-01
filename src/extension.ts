@@ -1,16 +1,16 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { Commands } from './constants';
-import { Session } from './backend/session';
 import { generateDebugTrace } from './backend/generate_debugger_trace';
+import { initFrontend } from './frontend/init_frontend';
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand(Commands.START_DEBUG, async (file?: Uri) => {
-		generateDebugTrace(file);
+		const backendTrace = await generateDebugTrace(file);
+		if (backendTrace) {
+			// Init Frontend with the backend trace
+			await initFrontend(backendTrace, context);
+		}
 	});
 	context.subscriptions.push(disposable);
 }

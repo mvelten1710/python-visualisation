@@ -1,23 +1,10 @@
 import * as vscode from 'vscode';
 
-export class Session {
-    private stateTrace: BackendTrace;
+export class BackendSession {
+    private readonly stateTrace: BackendTrace;
 
     constructor() {
         this.stateTrace = new Array<BackendTraceElem>();
-    }
-
-    /**
-     * Returns a basic debug configuration
-     * @param file the file to be debugged
-     */
-    getDebugConfiguration(file: vscode.Uri) {
-        return {
-            name: `Debugging File`,
-            type: 'python',
-            request: 'launch',
-            program: file?.fsPath ?? `${file}`,
-        };
     }
 
     /**
@@ -27,24 +14,24 @@ export class Session {
     async startDebugging(filename: vscode.Uri | undefined): Promise<boolean> {
         if (!filename) { return !!filename; }
         await this.setBreakpoint(filename.fsPath);
-        return await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
+        return vscode.debug.startDebugging(undefined, this.getDebugConfiguration(filename));
     }
 
-    public async generateBackendTrace() {
+    public async generateBackendTrace(): Promise<BackendTrace> {
         while (vscode.debug.activeDebugSession) {
             const threads = await this.threadsRequest();
 
             if (!threads.length) { break; }
             // FIX: Thread is not available after exiting function without delay
             // maybe an await is missing!
-            // await new Promise(resolve => setTimeout(resolve, 1));
+            await new Promise(resolve => setTimeout(resolve, 1));
             const traceElem = await this.getStateTraceElem(threads[0].id);
             if (traceElem) {
                 this.stateTrace.push(traceElem);
             }
             await this.next(threads[0].id);
         }
-        console.log(JSON.stringify(this.stateTrace, null, 2));
+        return this.stateTrace;
     }
 
     private async getStateTraceElem(threadId: number): Promise<BackendTraceElem> {
@@ -59,8 +46,7 @@ export class Session {
 
         // Retrieve all variables in global Frame/Scope
         // Then get Globals (Variables, Functions or Objects)
-        const globalVars = (await this.variablesRequest(scopes[scopes.length-1].variablesReference))
-                                .filter(f => !f.name.includes('special variables') && f.type.length > 0);
+        const globalVars = (await this.variablesRequest(scopes[scopes.length-1].variablesReference));
 
         const globals = this.generateGlobals(globalVars);
 
@@ -155,13 +141,13 @@ export class Session {
     private async generateHeap(stackFrames: Array<StackFrame>): Promise<Map<Address, HeapValue>> {
         let heap = new Map();
 
-        stackFrames.forEach(async sf => {
+        for (const sf of stackFrames) {
             const scope = await this.scopesRequest(sf.id);
             const vars = (await this.variablesRequest(scope[0].variablesReference)).filter(v => v.variablesReference > 0 && v.type.length > 0);
             vars.forEach(v => {
                 heap = heap.set(v.variablesReference, this.extractHeapValue(v));
             });
-        });
+        }
 
         return heap;
     }
@@ -201,5 +187,18 @@ export class Session {
     private async threadsRequest(): Promise<Array<Thread>> {
         return ((await vscode.debug.activeDebugSession?.customRequest(
             'threads')).threads as Array<Thread>);
+    }
+
+        /**
+     * Returns a basic debug configuration
+     * @param file the file to be debugged
+     */
+    private getDebugConfiguration(file: vscode.Uri) {
+        return {
+            name: `Debugging File`,
+            type: 'python',
+            request: 'launch',
+            program: file?.fsPath ?? `${file}`,
+        };
     }
 }
