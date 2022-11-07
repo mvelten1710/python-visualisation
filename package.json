@@ -1,6 +1,6 @@
 {
-  "name": "python-visualisation",
-  "displayName": "python-visualisation",
+  "name": "python-visualization",
+  "displayName": "python-visualization",
   "description": "This extension is visualizing the execution of python programs",
   "version": "0.0.1",
   "engines": {
@@ -10,39 +10,44 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:python-visualisation.startDebugSession"
+    "onCommand:python-visualization.startDebugSession"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Python Visualization",
+      "properties": {
+        "python-visualization.outputBackendTrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Creates a file with backend Trace (for debugging purposes)"
+        },
+        "python-visualization.onDemandTrace": {
+          "type": "boolean",
+          "default": true,
+          "description": "If Trace should be generated on demand or beforehand"
+        }
+      }
+    },
     "commands": [
       {
-        "command": "python-visualisation.startDebugSession",
-        "title": "Python Viz"
-      },
-      {
-        "command": "python-visualisation.stepOver",
-        "title": "Python Next"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "python-visualisation.startDebugSession",
-        "key": "ctrl+alt+V"
+        "command": "python-visualization.startDebugSession",
+        "title": "Python Visualization"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "python-visualisation.startDebugSession",
+          "command": "python-visualization.startDebugSession",
           "when": "editorLangId == python && resourceExtname == .py",
-          "group": "pythonDebug@1"
+          "group": "pythonViz@0"
         }
       ],
       "editor/title/run": [
         {
-          "command": "python-visualisation.startDebugSession",
+          "command": "python-visualization.startDebugSession",
           "when": "resourceExtname == .py",
-          "group": "pythonDebug@10"
+          "group": "pythonViz@0"
         }
       ]
     }
@@ -58,7 +63,6 @@
   "devDependencies": {
     "@types/glob": "^7.2.0",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
     "@types/vscode": "^1.71.0",
     "@typescript-eslint/eslint-plugin": "^5.30.0",
     "@typescript-eslint/parser": "^5.30.0",
@@ -67,5 +71,8 @@
     "glob": "^8.0.3",
     "mocha": "^10.0.0",
     "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "stringify-json": "^2.0.0"
   }
 }

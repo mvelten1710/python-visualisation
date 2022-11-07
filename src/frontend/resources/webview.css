@@ -1,0 +1,13 @@
+#code {
+  background-color: red;
+  width: 50%;
+  height: 300px;
+  overflow-y: scroll;
+}
+body {
+  padding: 15px;
+  background-color: blue;
+  height: fit-content;
+  width: max-content;
+  overflow: hidden;
+}

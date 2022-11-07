@@ -1,18 +1,13 @@
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
+import { initVisualization } from './backend/generate_debugger_trace';
 import { Commands } from './constants';
-import { generateDebugTrace } from './backend/generate_debugger_trace';
-import { initFrontend } from './frontend/init_frontend';
+
 
 export function activate(context: vscode.ExtensionContext) {
-	let disposable = vscode.commands.registerCommand(Commands.START_DEBUG, async (file?: Uri) => {
-		const backendTrace = await generateDebugTrace(file);
-		if (backendTrace) {
-			// Init Frontend with the backend trace
-			await initFrontend(backendTrace, context);
-		}
-	});
-	context.subscriptions.push(disposable);
+	context.subscriptions.push(
+		vscode.commands.registerCommand(Commands.START_DEBUG, async (file?: Uri) => initVisualization(context, file))
+	);
 }
 
 // this method is called when your extension is deactivated
