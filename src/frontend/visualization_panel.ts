@@ -4,6 +4,7 @@ import util = require('util');
 import { BackendSession } from '../backend/backend_session';
 import stringify from 'stringify-json';
 import { getFileContent, getWorkspaceUri } from '../utils';
+import { Variables } from '../constants';
 
 export class VisualizationPanel {
   public static currentPanel: VisualizationPanel | undefined;
@@ -129,20 +130,22 @@ export class VisualizationPanel {
   }
 
   private async next() {
-    // Get next BackendTraceElem. If not there yet, generate it, else use already generated one
-    if (this._backendSession.needToGenerateNewElem()) {
-      // A new elem needs to be generated
-      if (await this._backendSession.generateBackendTraceElemOnDemand()) {
+    // Check if at end of file (last line)
+    if (1) {
+      // Get next BackendTraceElem. If not there yet, generate it, else use already generated one
+      if (this._backendSession.needToGenerateNewElem()) {
+        // A new elem needs to be generated
+        if (await this._backendSession.generateBackendTraceElemOnDemand()) {
+          this._backendSession.incTraceIndex();
+        }
+      } else {
+        // An elem is already there, just update the index
         this._backendSession.incTraceIndex();
+        await this._backendSession.gotoRequest();
       }
-    } else {
-      // An elem is already there, just update the index
-      if (vscode.debug.activeDebugSession) {
-        this._backendSession.incTraceIndex();
-      }
+      // Update the webview with the new trace
+      this.updateWebviewContent();
     }
-    // Update the webview with the new trace
-    this.updateWebviewContent();
   }
 
   private async prev() {
@@ -163,7 +166,7 @@ export class VisualizationPanel {
     // Try to delete the temp_file.py when webview is closed
     const workspaceUri = getWorkspaceUri();
     if (workspaceUri) {
-      await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, 'temp_file.py'));
+      await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
     }
 
     this._panel.dispose();

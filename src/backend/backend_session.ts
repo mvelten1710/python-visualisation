@@ -17,15 +17,16 @@ export class BackendSession {
     if (!filename) {
       return !!filename;
     }
-
-    const capabilities = await this.initializeRequest();
-
-    return await vscode.debug.startDebugging(
+    const temp = await vscode.debug.startDebugging(
       undefined,
       this.getDebugConfiguration(filename)
       // FIX: When Milestone November 2022 releases (on 2. December) these options are available to hide debug interface
       //{ suppressDebugStatusbar: true, suppressDebugToolbar: true, suppressDebugView: true}
     );
+
+    const capabilities = await this.initializeRequest();
+
+    return temp;
   }
 
   public async generateBackendTraceElemOnDemand(): Promise<boolean> {
@@ -216,11 +217,20 @@ export class BackendSession {
     }
   }
 
+  /**
+   * The GotoTargesRequest just confirms that the given source and line are executable code.
+   * It mostly returns only one GotoTarget, that can be used in the GotoRequest, to actually jump to the given line.
+   *
+   * @param source Source from Stackframe Request
+   * @returns A list of GotoTargets. But mostly contains only one Target
+   */
   private async gotoTargetsRequest(source: Source): Promise<GotoTaget[]> {
-    return await vscode.debug.activeDebugSession?.customRequest('gotoTargets', {
-      source: source,
-      line: this._traceIndex,
-    });
+    return (
+      await vscode.debug.activeDebugSession?.customRequest('gotoTargets', {
+        source: source,
+        line: this._trace[this._traceIndex].line,
+      })
+    ).targets as Array<GotoTaget>;
   }
 
   private async initializeRequest(): Promise<Capabilities> {
@@ -299,16 +309,10 @@ export class BackendSession {
 
   public needToGenerateNewElem(): boolean {
     // First check if there is a next elem
-    if (!this.isNextElemPresent() && vscode.debug.activeDebugSession) {
-      // Next Elem is not present and debugger is still active. New TraceElem can be retrieved!
-      // Also means the program is not yet finished (Can also be on last line and next step ends the debugger :/)
-      return true;
-    }
-    // Elem is already there, so no need to generate a new one!
-    return false;
+    return !this.isNextElemPresent() && !!vscode.debug.activeDebugSession;
   }
 
   public isNextElemPresent(): boolean {
-    return this._trace[this._traceIndex] !== undefined;
+    return !!this._trace[this._traceIndex];
   }
 }

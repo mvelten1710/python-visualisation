@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import util = require('util');
 import path = require('path');
 import stringify = require('stringify-json');
+import { Variables } from './constants';
 
 /**
  *  Gets the uri for the currently opened workspace, if one is opened.
@@ -42,7 +43,7 @@ export async function createTempFileFromCurrentEditor(fileContent: string): Prom
   // Create a temp file in the workspace and delete it afterwards
   const workspaceUri = getWorkspaceUri();
   if (workspaceUri) {
-    const tempFileUri = vscode.Uri.joinPath(workspaceUri, 'temp_file.py');
+    const tempFileUri = vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE);
     const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
     // Workspace is also opened, file can be written and path to file can be returned
     await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
