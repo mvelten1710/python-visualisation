@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { initFrontend } from '../frontend/init_frontend';
 import { VisualizationPanel } from '../frontend/visualization_panel';
-import { createBackendTraceOutput, getFileContent } from '../utils';
+import { createBackendTraceOutput, createTempFileFromCurrentEditor, getFileContent, getOpenEditors } from '../utils';
 import { BackendSession } from './backend_session';
 
 export async function initVisualization(
@@ -18,18 +18,6 @@ export async function initVisualization(
   const onDemand = config.get<boolean>('onDemandTrace');
   // Get value if Trace should be output into a seperate file
   const shouldOutputTrace = config.get<boolean>('outputBackendTrace');
-
-  // Start Debugging and stop on the the first line
-
-  // When the user clicks the "next"-button the debugger does a "step in"-request
-
-  // When the user is not on the first line of the code and then uses the "previous"-button,
-  // a previous generated "TraceElem" is used to display the visualization
-
-  // There needs to be a check everytime, if a "TraceElem" already exists, before the "next"-button is clicked
-  // On the other hand the "prev"-button doesnt need something like that, there the already generated "TraceElem" is used
-
-  // One thing is to consider: What happens with the open editor/debug window? Especially when the user steps forward and backwards
 
   if (onDemand) {
     // With this approach, backend and frontend are started simultaneously.
@@ -56,13 +44,23 @@ async function initOnDemand(context: vscode.ExtensionContext, file: vscode.Uri |
   }
   // Both the Backend and the Frontend need to "run", because of the "on demand" aspect of this approach
   const backendSession = new BackendSession();
-  if (await backendSession.startDebugging(file)) {
-    // Start Frontend
-    const fileContent = await getFileContent(file);
-    new VisualizationPanel(context, fileContent, backendSession);
-  } else {
-    vscode.window.showErrorMessage('Debug Session could not be started!\nStopping...');
-    return;
+  // Get file content and create temp file with pass at end to be able to debug last statement
+  // TODO: Start Debugging opens the new temp file in wrong column. Need to close the original file and only
+  // show the tempfile on the left and the visualization on the right
+  const tempFileUri = await createTempFileFromCurrentEditor(await getFileContent(file));
+  const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
+  if (startedEditor.length > 0) {
+    // Hide the editor, because a new editor with the temp file is opened
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    //await vscode.window.showInformationMessage('Preparing Visualization... ');
+    if (await backendSession.startDebugging(tempFileUri)) {
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(tempFileUri!));
+      // Start Frontend
+      new VisualizationPanel(context, backendSession);
+    } else {
+      await vscode.window.showErrorMessage('Debug Session could not be started!\nStopping...');
+      return;
+    }
   }
 }
 

@@ -3,23 +3,21 @@ import path = require('path');
 import util = require('util');
 import { BackendSession } from '../backend/backend_session';
 import stringify from 'stringify-json';
-import { getFileContent } from '../utils';
+import { getFileContent, getWorkspaceUri } from '../utils';
 
 export class VisualizationPanel {
   public static currentPanel: VisualizationPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private readonly _backendSession: BackendSession;
-  private readonly _fileContent: string[];
   private readonly _style: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
-  constructor(context: vscode.ExtensionContext, file: string[], backendTrace: BackendSession) {
-    this._fileContent = file;
+  constructor(context: vscode.ExtensionContext, backendTrace: BackendSession) {
     this._backendSession = backendTrace;
     const panel = vscode.window.createWebviewPanel(
       'python-visualisation',
       'Code Visualization',
-      vscode.ViewColumn.Two,
+      vscode.ViewColumn.Beside,
       {
         enableScripts: true,
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'frontend', 'resources'))],
@@ -28,7 +26,6 @@ export class VisualizationPanel {
 
     // Get path to resource on disk
     const stylesFile = vscode.Uri.file(path.join(context.extensionPath, 'frontend', 'resources', 'webview.css'));
-
     // And get the special URI to use with the webview
     this._style = panel.webview.asWebviewUri(stylesFile);
 
@@ -68,15 +65,8 @@ export class VisualizationPanel {
           <link rel="stylesheet" href="${this._style.fsPath}">
           <title>Code Visualization</title>
           <style>
-            #code {
-              background-color: red;
-              width: 100%;
-              height: 300px;
-              overflow-y: scroll;
-            }
             body {
               padding: 15px;
-              background-color: blue;
               height: fit-content;
               width: 100%;
               overflow: hidden;
@@ -88,15 +78,6 @@ export class VisualizationPanel {
       </head>
       <body>
           <div class="column">
-            <div id="code" class="row">
-              <!-- Code from file is presented here -->
-              <h4>Code</h4>
-              <ol>
-                ${this._fileContent.map((line) => {
-                  return `<li>${line}</li>`;
-                })}
-              </ol>
-            </div>
             <div class="row">
               <!-- Actual Content: Two Tables => One with the Frames and One with the Objects -->
               <table>
@@ -111,8 +92,8 @@ export class VisualizationPanel {
               </table>
             </div>
             <div class="row">
-              <button type="button" onclick="next()">Next</button>
               <button type="button" onclick="prev()">Prev</button>
+              <button type="button" onclick="next()">Next</button>
             </div>
           </div>
 
@@ -164,18 +145,26 @@ export class VisualizationPanel {
     this.updateWebviewContent();
   }
 
-  private prev() {
+  private async prev() {
     // Get prev BackendTraceElem.
     if (this._backendSession.getTraceIndex() > 0) {
       // Prev Elem can be retrieved,
       this._backendSession.decTraceIndex();
+
+      await this._backendSession.gotoRequest();
       // Webview only needs to be updated if there is a prev TraceElem
       this.updateWebviewContent();
     }
   }
 
-  public dispose() {
+  public async dispose() {
     VisualizationPanel.currentPanel = undefined;
+
+    // Try to delete the temp_file.py when webview is closed
+    const workspaceUri = getWorkspaceUri();
+    if (workspaceUri) {
+      await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, 'temp_file.py'));
+    }
 
     this._panel.dispose();
 

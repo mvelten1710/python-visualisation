@@ -1,20 +1,12 @@
 import * as vscode from 'vscode';
 
-enum BackendState {
-  ready, // Debugging is not yet running
-  standby, // Debugging is running and backend waits for input
-  retrievingElement, // Currently retrieving new trace elem(s)
-}
-
 export class BackendSession {
   private readonly _trace: BackendTrace;
-  private _backendState: BackendState;
   private _traceIndex: number;
 
   constructor() {
     this._trace = new Array<BackendTraceElem>();
     this._traceIndex = 0;
-    this._backendState = BackendState.ready;
   }
 
   /**
@@ -28,14 +20,6 @@ export class BackendSession {
 
     const capabilities = await this.initializeRequest();
 
-    this.setBreakpoint(filename.path);
-
-    // if (capabilities.supportsConfigurationDoneRequest) {
-    //     await this.configurationDoneRequest();
-    // }
-
-    this._backendState = BackendState.standby;
-
     return await vscode.debug.startDebugging(
       undefined,
       this.getDebugConfiguration(filename)
@@ -45,12 +29,10 @@ export class BackendSession {
   }
 
   public async generateBackendTraceElemOnDemand(): Promise<boolean> {
-    this._backendState = BackendState.retrievingElement;
     if (vscode.debug.activeDebugSession) {
       const threads = await this.threadsRequest();
       if (!threads.length) {
         console.warn('generateBackendTraceOnDemand: No Threads available!');
-        this._backendState = BackendState.standby;
         return false;
       }
       const traceElem = await this.getStateTraceElem(threads[0].id);
@@ -58,15 +40,12 @@ export class BackendSession {
         this._trace.push(traceElem);
       }
       await this.next(threads[0].id);
-      this._backendState = BackendState.standby;
       return true;
     }
-    this._backendState = BackendState.standby;
     return false;
   }
 
   public async generateBackendTrace(): Promise<BackendTrace> {
-    this._backendState = BackendState.retrievingElement;
     while (vscode.debug.activeDebugSession) {
       const threads = await this.threadsRequest();
       if (!threads.length) {
@@ -78,13 +57,12 @@ export class BackendSession {
       }
       await this.next(threads[0].id);
     }
-    this._backendState = BackendState.standby;
     return this._trace;
   }
 
   private async getStateTraceElem(threadId: number): Promise<BackendTraceElem> {
     // Extract line and scopeName from current StackFrame
-    const stackFrames = await this.stackFramesRequest(threadId);
+    const stackFrames = await this.stackTraceRequest(threadId);
 
     const line = stackFrames[0].line;
     const scopeName = stackFrames[0].name;
@@ -226,6 +204,25 @@ export class BackendSession {
     });
   }
 
+  public async gotoRequest(): Promise<void> {
+    const threads = await this.threadsRequest();
+    const frames = await this.stackTraceRequest(threads[0].id);
+    const gotoTargets = await this.gotoTargetsRequest(frames[0].source);
+    if (gotoTargets.length > 0) {
+      await vscode.debug.activeDebugSession?.customRequest('goto', {
+        threadId: threads[0].id,
+        targetId: gotoTargets[0].id,
+      });
+    }
+  }
+
+  private async gotoTargetsRequest(source: Source): Promise<GotoTaget[]> {
+    return await vscode.debug.activeDebugSession?.customRequest('gotoTargets', {
+      source: source,
+      line: this._traceIndex,
+    });
+  }
+
   private async initializeRequest(): Promise<Capabilities> {
     return await vscode.debug.activeDebugSession?.customRequest('initialize', {
       adapterID: 0,
@@ -252,7 +249,7 @@ export class BackendSession {
     ).scopes as Array<Scope>;
   }
 
-  private async stackFramesRequest(id: number): Promise<Array<StackFrame>> {
+  private async stackTraceRequest(id: number): Promise<Array<StackFrame>> {
     return (
       await vscode.debug.activeDebugSession?.customRequest('stackTrace', {
         threadId: id,
@@ -275,7 +272,7 @@ export class BackendSession {
       request: 'launch',
       program: file?.fsPath ?? `${file}`,
       console: 'integratedTerminal',
-      //stopOnEntry: true,
+      stopOnEntry: true,
       justMyCode: true,
     };
   }
@@ -299,26 +296,6 @@ export class BackendSession {
   public decTraceIndex(): number {
     return --this._traceIndex;
   }
-
-  // ~Next Button~
-  // 1) Is there a elem already present?
-  // 1.1) If there is already an element present: Just retrieve the next element
-  // 1.2) If there is not an element present: Generate a new element with the debugger
-
-  // 2) Are we at the end of the program? (Should probably be checked before 1) )
-  // 2.1) If we are: Stop Debugger and only use the trace for further visualization
-  // 2.2) If we are not: Proceed as in 1)
-
-  // ~Prev Button~
-  // 1) Are we at the beginning of the trace?
-  // 1.1) If we are: Do nothing
-  // 1.2) If we are not: Just retrieve the last elem in the trace
-
-  // Question 1: When do we know, we are at the end of the program?
-  // Possible Solution(s):
-  // 1) Debugger is still active?
-  // => If the debugger is stil active, we know there is at least one step that can be made
-  // => If the debugger is not active anymore, either an error occurred or the program has finished
 
   public needToGenerateNewElem(): boolean {
     // First check if there is a next elem
