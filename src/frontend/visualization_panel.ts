@@ -1,20 +1,20 @@
 import * as vscode from 'vscode';
 import path = require('path');
-import util = require('util');
 import { BackendSession } from '../backend/backend_session';
-import stringify from 'stringify-json';
-import { getFileContent, getWorkspaceUri } from '../utils';
-import { Variables } from '../constants';
+import { createDecorationOptions, getActiveEditor, getOpenEditors, getWorkspaceUri } from '../utils';
+import { lineHighlightingDecorationType, Variables } from '../constants';
 
 export class VisualizationPanel {
   public static currentPanel: VisualizationPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
-  private readonly _backendSession: BackendSession;
   private readonly _style: vscode.Uri;
+  private readonly _trace: BackendTrace;
+  private _traceIndex: number;
   private _disposables: vscode.Disposable[] = [];
 
-  constructor(context: vscode.ExtensionContext, backendTrace: BackendSession) {
-    this._backendSession = backendTrace;
+  constructor(context: vscode.ExtensionContext, backendTrace: BackendTrace) {
+    this._trace = backendTrace;
+    this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
       'python-visualisation',
       'Code Visualization',
@@ -37,26 +37,18 @@ export class VisualizationPanel {
     this._panel.webview.onDidReceiveMessage(
       (msg) => {
         switch (msg.command) {
-          case 'next':
-            this.next();
-            return;
-          case 'prev':
-            this.prev();
-            return;
+          case 'onClick':
+            return this.onClick(msg.type);
         }
       },
       undefined,
       this._disposables
     );
+    this.updateLineHighlight();
     this.updateWebviewContent();
   }
 
   public updateWebviewContent() {
-    // We need to map the BackendTrace into a FrontentTrace or something that is
-    // useable for visualization
-    const frontendTrace = this.generateFrontendTrace(
-      this._backendSession.getTraceRange(this._backendSession.getTraceIndex())
-    );
     this._panel.webview.html = `
       <!DOCTYPE html>
       <html lang="en">
@@ -77,7 +69,7 @@ export class VisualizationPanel {
             }
           </style>
       </head>
-      <body>
+      <body onload="onLoad()">
           <div class="column">
             <div class="row">
               <!-- Actual Content: Two Tables => One with the Frames and One with the Objects -->
@@ -87,14 +79,14 @@ export class VisualizationPanel {
                   <th>Objects</th>
                 </tr>
                 <tr>
-                  <td>TraceIndex: ${this._backendSession.getTraceIndex()}</td>
-                  <td>${frontendTrace}<td>
+                  <td>Frames Content</td>
+                  <td>Objects Content</td>
                 </tr>
               </table>
             </div>
             <div class="row">
-              <button type="button" onclick="prev()">Prev</button>
-              <button type="button" onclick="next()">Next</button>
+              <button id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
+              <button id="nextButton" type="button" onclick="onClick('next')">Next</button>
             </div>
           </div>
 
@@ -107,17 +99,20 @@ export class VisualizationPanel {
               const message = event.data; 
 
               switch(message.command) {
-                case '':
-
+                case 'updateButtons':
+                  document.querySelector('#nextButton').disabled = !message.next;
+                  document.querySelector('#prevButton').disabled = !message.prev;
                   break;
               }
             });
 
-            function next() {
-              vscode.postMessage({ command: 'next' })
+            function onLoad() {
+              document.querySelector('#nextButton').disabled = false;
+              document.querySelector('#prevButton').disabled = true;
             }
-            function prev() {
-              vscode.postMessage({ command: 'prev' })
+
+            function onClick(type) {
+              vscode.postMessage({ command: 'onClick', type: type })
             }
           </script>
       </body>
@@ -125,39 +120,37 @@ export class VisualizationPanel {
       `;
   }
 
-  private generateFrontendTrace(backendTrace: BackendTrace): FrontendTrace {
+  private updateLineHighlight() {
+    // Can be undefined if no editor has focus
+    const editor = getOpenEditors();
+    if (editor.length === 1) {
+      const line = this._trace[this._traceIndex].line - 1;
+      editor[0].setDecorations(
+        lineHighlightingDecorationType,
+        createDecorationOptions(new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999)))
+      );
+    }
+  }
+
+  private createFrontendTrace(backendTrace: BackendTrace): FrontendTrace {
     return [];
   }
 
-  private async next() {
-    // Check if at end of file (last line)
-    if (1) {
-      // Get next BackendTraceElem. If not there yet, generate it, else use already generated one
-      if (this._backendSession.needToGenerateNewElem()) {
-        // A new elem needs to be generated
-        if (await this._backendSession.generateBackendTraceElemOnDemand()) {
-          this._backendSession.incTraceIndex();
-        }
-      } else {
-        // An elem is already there, just update the index
-        this._backendSession.incTraceIndex();
-        await this._backendSession.gotoRequest();
-      }
-      // Update the webview with the new trace
-      this.updateWebviewContent();
-    }
+  private async onClick(type: string) {
+    type === 'next' ? ++this._traceIndex : --this._traceIndex;
+    await this.postMessageToWebview();
+    this.updateLineHighlight();
+    this.updateWebviewContent();
   }
 
-  private async prev() {
-    // Get prev BackendTraceElem.
-    if (this._backendSession.getTraceIndex() > 0) {
-      // Prev Elem can be retrieved,
-      this._backendSession.decTraceIndex();
-
-      await this._backendSession.gotoRequest();
-      // Webview only needs to be updated if there is a prev TraceElem
-      this.updateWebviewContent();
-    }
+  private async postMessageToWebview() {
+    const temp1 = this._traceIndex < this._trace.length - 1;
+    const temp2 = this._traceIndex > 0;
+    await this._panel.webview.postMessage({
+      command: 'updateButtons',
+      next: temp1,
+      prev: temp2,
+    });
   }
 
   public async dispose() {

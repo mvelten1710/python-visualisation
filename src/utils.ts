@@ -10,7 +10,7 @@ import { Variables } from './constants';
  * @returns WorkspaceFolder | undefined If a workspace is open it returns the WorkspaceFolder Uri, if not undefined is returned
  */
 export function getWorkspaceUri(): vscode.Uri | undefined {
-  return vscode.workspace.workspaceFolders?.at(0)?.uri;
+  return vscode.workspace.workspaceFolders?.map((wsf) => wsf?.uri)[0];
 }
 
 export async function createBackendTraceOutput(backendTrace: BackendTrace, filePath: string) {
@@ -53,4 +53,20 @@ export async function createTempFileFromCurrentEditor(fileContent: string): Prom
 
 export function getOpenEditors(): readonly vscode.TextEditor[] {
   return vscode.window.visibleTextEditors;
+}
+
+export function getActiveEditor(): vscode.TextEditor | undefined {
+  return vscode.window.activeTextEditor;
+}
+
+export function createDecorationOptions(range: vscode.Range): vscode.DecorationOptions[] {
+  return [
+    {
+      range: range,
+    },
+  ];
+}
+
+export function getConfigValue<T>(configAttr: string): T | undefined {
+  return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttr);
 }

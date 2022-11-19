@@ -189,16 +189,6 @@ export class BackendSession {
     return heap;
   }
 
-  /**
-   * Sets a breakpoint at the beginning of the file to be able to step through the code
-   * @param filename the name of the main file
-   */
-  private async setBreakpoint(filename: string) {
-    const location = new vscode.Location(vscode.Uri.file(filename), new vscode.Position(0, 0));
-    const sourceBreakpoint = new vscode.SourceBreakpoint(location);
-    vscode.debug.addBreakpoints([sourceBreakpoint]);
-  }
-
   private async next(threadId: number) {
     await vscode.debug.activeDebugSession?.customRequest('stepIn', {
       threadId: threadId,
@@ -285,34 +275,5 @@ export class BackendSession {
       stopOnEntry: true,
       justMyCode: true,
     };
-  }
-
-  public getTrace(): BackendTrace {
-    return this._trace;
-  }
-
-  public getTraceRange(end: number): BackendTrace {
-    return this._trace.slice(undefined, end);
-  }
-
-  public getTraceIndex(): number {
-    return this._traceIndex;
-  }
-
-  public incTraceIndex(): number {
-    return ++this._traceIndex;
-  }
-
-  public decTraceIndex(): number {
-    return --this._traceIndex;
-  }
-
-  public needToGenerateNewElem(): boolean {
-    // First check if there is a next elem
-    return !this.isNextElemPresent() && !!vscode.debug.activeDebugSession;
-  }
-
-  public isNextElemPresent(): boolean {
-    return !!this._trace[this._traceIndex];
   }
 }
