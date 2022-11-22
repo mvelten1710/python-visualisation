@@ -1,13 +1,23 @@
-#code {
-  background-color: red;
-  width: 50%;
-  height: 300px;
-  overflow-y: scroll;
-}
 body {
   padding: 15px;
-  background-color: blue;
   height: fit-content;
-  width: max-content;
+  width: 100%;
   overflow: hidden;
+}
+.column {
+  width: 100%;
+}
+
+#framesTitle {
+  margin: 5px;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: start;
+}
+
+#objectsTitle {
+  margin: 5px;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: end;
 }

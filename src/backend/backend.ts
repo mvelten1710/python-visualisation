@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { initFrontend } from '../frontend/frontend';
-import { VisualizationPanel } from '../frontend/visualization_panel';
 import {
   createBackendTraceOutput,
   createTempFileFromCurrentEditor,
@@ -25,19 +24,30 @@ export async function initExtension(
   } else {
     // With this approach, a "raw" trace from the debugger is generated.
     // After that the BackendTrace is propergated to the frontend for visualization
-    const backendTrace = await generateBackendTrace(file);
-    if (backendTrace) {
-      if (getConfigValue<boolean>('outputBackendTrace')) {
-        await createBackendTraceOutput(backendTrace, file!.path);
+    // Get file content and create temp file with pass at end to be able to debug last statement
+    const tempFileUri = await createTempFileFromCurrentEditor(await getFileContent(file));
+    const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
+    if (tempFileUri && startedEditor.length > 0) {
+      // Hide the editor, because a new editor with the temp file is opened
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      const backendTrace = await generateBackendTrace(tempFileUri);
+      if (backendTrace) {
+        if (getConfigValue<boolean>('outputBackendTrace')) {
+          await createBackendTraceOutput(backendTrace, file!.path);
+        }
+        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(tempFileUri));
+        // Init Frontend with the backend trace
+        await initFrontend(context, backendTrace);
       }
-      // Init Frontend with the backend trace
-      await initFrontend(context, backendTrace);
     }
   }
   return;
 }
 
 async function generateBackendTrace(filename: vscode.Uri | undefined): Promise<BackendTrace | undefined> {
+  if (!filename) {
+    return;
+  }
   const session = new BackendSession();
   if (await session.startDebugging(filename)) {
     return await session.generateBackendTrace();
@@ -46,27 +56,3 @@ async function generateBackendTrace(filename: vscode.Uri | undefined): Promise<B
     return;
   }
 }
-
-// async function initOnDemand(context: vscode.ExtensionContext, file: vscode.Uri | undefined) {
-//   if (!file) {
-//     return;
-//   }
-//   // Both the Backend and the Frontend need to "run", because of the "on demand" aspect of this approach
-//   const backendSession = new BackendSession();
-//   // Get file content and create temp file with pass at end to be able to debug last statement
-//   const tempFileUri = await createTempFileFromCurrentEditor(await getFileContent(file));
-//   const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
-//   if (startedEditor.length > 0) {
-//     // Hide the editor, because a new editor with the temp file is opened
-//     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-//     //await vscode.window.showInformationMessage('Preparing Visualization... ');
-//     if (await backendSession.startDebugging(tempFileUri)) {
-//       await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(tempFileUri!));
-//       // Start Frontend
-//       new VisualizationPanel(context, backendSession);
-//     } else {
-//       await vscode.window.showErrorMessage('Debug Session could not be started!\nStopping...');
-//       return;
-//     }
-//   }
-// }

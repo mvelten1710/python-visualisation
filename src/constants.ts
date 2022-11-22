@@ -10,7 +10,14 @@ export namespace Variables {
   export const TEMP_FILE = 'visualization_temp.py';
 }
 
-export const lineHighlightingDecorationType = vscode.window.createTextEditorDecorationType({
-  backgroundColor: 'rgba(255,255,0,0.3)',
-  fontWeight: 'bold',
+export const currentLineHighlightingType = vscode.window.createTextEditorDecorationType({
+  backgroundColor: 'rgba(255,255,0,0.15)', // Yellow
+  isWholeLine: true,
+});
+
+export const nextLineHighlightingType = vscode.window.createTextEditorDecorationType({
+  backgroundColor: 'rgba(44, 199, 85, 0.15)', // Green
+  gutterIconPath: vscode.Uri.parse('src/frontend/resources/chevron_right.png'),
+  gutterIconSize: 'auto',
+  isWholeLine: true,
 });

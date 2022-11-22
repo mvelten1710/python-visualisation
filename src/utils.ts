@@ -22,7 +22,7 @@ export async function createBackendTraceOutput(backendTrace: BackendTrace, fileP
 }
 
 /**
- * Reads a fie with the given uri and decodes the contens to a string and afterwards splits every line into a string array
+ * Reads the file with the given uri and decodes the contens to a string and afterwards splits every line into a string array
  *
  * @param fileUri the uri of the file that needs to be retrieved
  * @returns the content of the file in a string array line by line

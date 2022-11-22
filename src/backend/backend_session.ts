@@ -24,26 +24,9 @@ export class BackendSession {
       //{ suppressDebugStatusbar: true, suppressDebugToolbar: true, suppressDebugView: true}
     );
 
-    const capabilities = await this.initializeRequest();
+    // const capabilities = await this.initializeRequest();
 
     return temp;
-  }
-
-  public async generateBackendTraceElemOnDemand(): Promise<boolean> {
-    if (vscode.debug.activeDebugSession) {
-      const threads = await this.threadsRequest();
-      if (!threads.length) {
-        console.warn('generateBackendTraceOnDemand: No Threads available!');
-        return false;
-      }
-      const traceElem = await this.getStateTraceElem(threads[0].id);
-      if (traceElem) {
-        this._trace.push(traceElem);
-      }
-      await this.next(threads[0].id);
-      return true;
-    }
-    return false;
   }
 
   public async generateBackendTrace(): Promise<BackendTrace> {
@@ -52,6 +35,7 @@ export class BackendSession {
       if (!threads.length) {
         break;
       }
+      // await new Promise( resolve => setTimeout(resolve, 100) );
       const traceElem = await this.getStateTraceElem(threads[0].id);
       if (traceElem) {
         this._trace.push(traceElem);
@@ -274,6 +258,7 @@ export class BackendSession {
       console: 'integratedTerminal',
       stopOnEntry: true,
       justMyCode: true,
+      // logToFile: true, // Only activate if problems with debugger occur
     };
   }
 }
