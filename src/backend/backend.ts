@@ -30,29 +30,17 @@ export async function initExtension(
     if (tempFileUri && startedEditor.length > 0) {
       // Hide the editor, because a new editor with the temp file is opened
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-      const backendTrace = await generateBackendTrace(tempFileUri);
-      if (backendTrace) {
-        if (getConfigValue<boolean>('outputBackendTrace')) {
-          await createBackendTraceOutput(backendTrace, file!.path);
-        }
-        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(tempFileUri));
-        // Init Frontend with the backend trace
-        await initFrontend(context, backendTrace);
-      }
+      await generateBackendTrace(context, tempFileUri);
     }
   }
   return;
 }
 
-async function generateBackendTrace(filename: vscode.Uri | undefined): Promise<BackendTrace | undefined> {
+async function generateBackendTrace(context: vscode.ExtensionContext, filename: vscode.Uri | undefined): Promise<void> {
   if (!filename) {
     return;
   }
-  const session = new BackendSession();
-  if (await session.startDebugging(filename)) {
-    return await session.generateBackendTrace();
-  } else {
+  if (!(await BackendSession.startDebugging(context, filename))) {
     await vscode.window.showErrorMessage('Debug Session could not be started!\nStopping...');
-    return;
   }
 }

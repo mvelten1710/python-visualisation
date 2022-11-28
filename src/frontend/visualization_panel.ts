@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import path = require('path');
 import { createDecorationOptions, getOpenEditors, getWorkspaceUri } from '../utils';
 import { currentLineHighlightingType, Variables } from '../constants';
+import { BackendSession } from '../backend/backend_session';
 
 export class VisualizationPanel {
   private readonly _panel: vscode.WebviewPanel;
