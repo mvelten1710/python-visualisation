@@ -3,6 +3,8 @@ import util = require('util');
 import path = require('path');
 import stringify = require('stringify-json');
 import { Variables } from './constants';
+import { BackendSession } from './backend/backend_session';
+import { initFrontend } from './frontend/frontend';
 
 /**
  *  Gets the uri for the currently opened workspace, if one is opened.
@@ -35,7 +37,7 @@ export async function getFileContent(fileUri: vscode.Uri): Promise<string> {
  * Creates a file based on the currently opened editor. If no editor or workspace is open,
  * no file can be created.
  *
- * @returns The uri of a temporarily created file
+ * @returns The uri of a temporarily created file or undefined
  */
 export async function createTempFileFromCurrentEditor(fileContent: string): Promise<vscode.Uri | undefined> {
   // Create temp file with the content of the python file and add a 'pass' at the end
@@ -51,10 +53,20 @@ export async function createTempFileFromCurrentEditor(fileContent: string): Prom
   }
 }
 
+/**
+ * Simply returns a array of all open text editors
+ *
+ * @returns an array of open vscode.TextEditor
+ */
 export function getOpenEditors(): readonly vscode.TextEditor[] {
   return vscode.window.visibleTextEditors;
 }
 
+/**
+ * Simply returns the currenly focused TextEditor if one is focused, otherwise undefined
+ *
+ * @returns The currently focused vscode.TextEditor. If non is open or focused returns undefined
+ */
 export function getActiveEditor(): vscode.TextEditor | undefined {
   return vscode.window.activeTextEditor;
 }
@@ -67,6 +79,52 @@ export function createDecorationOptions(range: vscode.Range): vscode.DecorationO
   ];
 }
 
-export function getConfigValue<T>(configAttr: string): T | undefined {
-  return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttr);
+/**
+ * Returns the value of the given config attribute
+ *
+ * @param configAttribute name of the attribute to get the value from
+ * @returns the value of the requested config string
+ */
+export function getConfigValue<T>(configAttribute: string): T | undefined {
+  return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttribute);
+}
+
+/**
+ * Register a debug adapter tracker factory for the given debug type.
+ * It listens for stopped events and creates a BackendTraceElem in the Backend
+ * When finished it starts the Frontend Visualization
+ *
+ * @returns A Disposable that unregisters this factory when being disposed.
+ */
+export function createDebugAdapterTracker(): vscode.Disposable {
+  return vscode.debug.registerDebugAdapterTrackerFactory('python', {
+    createDebugAdapterTracker(session: vscode.DebugSession) {
+      return {
+        async onDidSendMessage(message) {
+          if (message.event === 'stopped' && message.body.reason !== 'exception') {
+            const threadId = message.body.threadId;
+            if (threadId) {
+              BackendSession.trace.push(await BackendSession.createBackendTraceElem(session, threadId));
+              BackendSession.nextRequest(session, threadId);
+            }
+          } else if (message.event === 'exited' || message.event === 'terminated') {
+            // Return the backendtrace
+          }
+        },
+        async onExit(code, signal) {
+          // Call Frontend from here to start with trace
+          if (BackendSession.trace) {
+            if (getConfigValue<boolean>('outputBackendTrace')) {
+              await createBackendTraceOutput(BackendSession.trace, BackendSession.file!.path);
+            }
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(BackendSession.file));
+            // Init Frontend with the backend trace
+            await initFrontend(BackendSession.context, BackendSession.trace);
+          }
+          BackendSession.tracker.dispose();
+        },
+        onError: (error) => console.error(`! ${error?.stack}`),
+      };
+    },
+  });
 }

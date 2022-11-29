@@ -89,14 +89,6 @@ export class VisualizationPanel {
         currentLineHighlightingType,
         createDecorationOptions(new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999)))
       );
-      // if (this._traceIndex + 1 < this._trace.length - 1) {
-      //   const line2 = this._trace[this._traceIndex + 1].line - 1;
-      //   // Line to execute next
-      //   editor[0].setDecorations(
-      //     nextLineHighlightingType,
-      //     createDecorationOptions(new vscode.Range(new vscode.Position(line2, 0), new vscode.Position(line2, 999)))
-      //   );
-      // }
     }
   }
 
@@ -117,19 +109,15 @@ export class VisualizationPanel {
     });
   }
 
-  private getTraceRange(end: number): BackendTrace {
-    return this._backendTrace.slice(0, end);
-  }
-
   public async dispose() {
     // Try to delete the temp_file.py when webview is closed
     const workspaceUri = getWorkspaceUri();
     if (workspaceUri) {
-      await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
-    }
-
-    if (this._panel !== null) {
-      this._panel.dispose();
+      try {
+        await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
+      } catch (e) {
+        await vscode.window.showInformationMessage('Temp File was already deleted');
+      }
     }
 
     while (this._disposables.length) {

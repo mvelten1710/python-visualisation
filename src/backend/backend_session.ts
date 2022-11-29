@@ -1,52 +1,13 @@
 import * as vscode from 'vscode';
-import { initFrontend } from '../frontend/frontend';
-import { createBackendTraceOutput, getConfigValue } from '../utils';
-
-export function createDebugAdapterTracker(): vscode.Disposable {
-  return vscode.debug.registerDebugAdapterTrackerFactory('python', {
-    createDebugAdapterTracker(session: vscode.DebugSession) {
-      return {
-        async onDidSendMessage(message) {
-          if (message.event === 'stopped' && message.body.reason !== 'exception') {
-            const threadId = message.body.threadId;
-            if (threadId) {
-              BackendSession.trace.push(await BackendSession.getStateTraceElem(session, threadId));
-              BackendSession.next(session, threadId);
-            }
-          } else if (message.event === 'exited' || message.event === 'terminated') {
-            // Return the backendtrace
-          }
-        },
-        onWillStopSession() {
-          console.log('stopped');
-        },
-        async onExit(code, signal) {
-          // Call Frontend from here to start with trace
-          if (BackendSession.trace) {
-            if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.file!.path);
-            }
-            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(BackendSession.file));
-            // Init Frontend with the backend trace
-            await initFrontend(BackendSession.context, BackendSession.trace);
-          }
-        },
-        onError: (error) => console.error(`! ${error?.stack}`),
-      };
-    },
-  });
-}
+import { createDebugAdapterTracker } from '../utils';
 
 export class BackendSession {
   static file: vscode.Uri;
   static context: vscode.ExtensionContext;
   static trace: BackendTrace = [];
   static tracker: vscode.Disposable;
-  private _traceIndex: number;
 
-  constructor() {
-    this._traceIndex = 0;
-  }
+  constructor() {}
 
   /**
    * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
@@ -60,12 +21,11 @@ export class BackendSession {
       return !!filename;
     }
 
-    // Check before new debug session, if there are old values (like the trace) that can be reused!
-
+    // TODO: Check before new debug session, if there are old values (like the trace) that can be reused!
     this.file = filename;
     this.context = context;
     this.trace = [];
-    this.tracker = this.tracker ? this.tracker : createDebugAdapterTracker();
+    this.tracker = createDebugAdapterTracker();
     const debugSuccess = await vscode.debug.startDebugging(
       undefined,
       this.getDebugConfiguration(filename)
@@ -77,7 +37,17 @@ export class BackendSession {
     return debugSuccess;
   }
 
-  public static async getStateTraceElem(session: vscode.DebugSession, threadId: number): Promise<BackendTraceElem> {
+  /**
+   * Makes various requests to the debugger to retrieve function, objects and simple variables to create a BackendTraceElem
+   *
+   * @param session Currently active vscode.DebugSession to make various debugger requests
+   * @param threadId ThreadId of currently stopped thread
+   * @returns A BackendTraceElem
+   */
+  public static async createBackendTraceElem(
+    session: vscode.DebugSession,
+    threadId: number
+  ): Promise<BackendTraceElem> {
     // Extract line and scopeName from current StackFrame
     const stackFrames = await this.stackTraceRequest(session, threadId);
 
@@ -89,13 +59,13 @@ export class BackendSession {
 
     // Retrieve all variables in global Frame/Scope
     // Then get Globals (Variables, Functions or Objects)
-    const globalVars = await this.variablesRequest(session, scopes[scopes.length - 1].variablesReference);
+    const globalVariables = await this.variablesRequest(session, scopes[scopes.length - 1].variablesReference);
 
-    const globals = this.generateGlobals(globalVars);
+    const globals = this.mapVariablesToGlobals(globalVariables);
 
-    const stack = await this.generateStack(session, stackFrames);
+    const stack = await this.createStackElements(session, stackFrames);
 
-    const heap = await this.generateHeap(session, stackFrames);
+    const heap = await this.createHeapElements(session, stackFrames);
 
     // Get everthing together to return a BackendTraceElem
     return {
@@ -107,7 +77,13 @@ export class BackendSession {
     } as BackendTraceElem;
   }
 
-  private static extractValue(variable: Variable): Value {
+  /**
+   * Maps type Variable to type Value
+   *
+   * @param variable variable Simple Variable thath gets mapped to a Value
+   * @returns Value
+   */
+  private static mapVariableToValue(variable: Variable): Value {
     switch (variable.type) {
       case 'int':
         return {
@@ -137,7 +113,13 @@ export class BackendSession {
     }
   }
 
-  private static extractHeapValue(variable: Variable): HeapValue {
+  /**
+   * Maps a Variable to a HeapValue Object
+   *
+   * @param variable Simple Variable that gets mapped to a HeapValue
+   * @returns HeapValue a object that resides in the heap
+   */
+  private static mapVariableToHeapValue(variable: Variable): HeapValue {
     switch (variable.type) {
       case 'list':
         return {
@@ -162,15 +144,28 @@ export class BackendSession {
     }
   }
 
-  private static generateGlobals(globalVars: Array<Variable>): Map<string, Value> {
+  /**
+   * Creates a Globals Element that hold all objects in the global stack frame at current stopped statement of the debugger.
+   *
+   * @param globalVars An Array of simple Variable types
+   * @returns A Map with the name and value of a object in the global stack frame
+   */
+  private static mapVariablesToGlobals(globalVars: Array<Variable>): Map<string, Value> {
     return new Map(
       globalVars.map((v) => {
-        return [v.name, this.extractValue(v)];
+        return [v.name, this.mapVariableToValue(v)];
       })
     );
   }
 
-  private static async generateStack(
+  /**
+   * Creates a Stack Element (Array<StackElem>), that holds all currently called functions and there locals
+   *
+   * @param session The active vscode.DebugAdapter to make variablesRequest
+   * @param stackFrames All current Stack Frames available to retrieve all function calls
+   * @returns An Array with all currently called functions
+   */
+  private static async createStackElements(
     session: vscode.DebugSession,
     stackFrames: Array<StackFrame>
   ): Promise<Array<StackElem>> {
@@ -184,7 +179,7 @@ export class BackendSession {
               (
                 await this.variablesRequest(session, (await this.scopesRequest(session, sf.id))[0].variablesReference)
               ).map((v) => {
-                return [v.name, this.extractValue(v)];
+                return [v.name, this.mapVariableToValue(v)];
               })
             ),
           } as StackElem)
@@ -192,7 +187,14 @@ export class BackendSession {
     );
   }
 
-  private static async generateHeap(
+  /**
+   * Creates a Heap Element (Map<Address, HeapValue>), that holds all objects at the current stopped statement of the debugger.
+   *
+   * @param session The active vscode.DebugSession to make scope- & variablesRequests
+   * @param stackFrames All current Stack Frames available to retrieve all objects of all frames
+   * @return A Map<Address, HeapValue> with Address that the HeapValue can be retrieved from the globals
+   */
+  private static async createHeapElements(
     session: vscode.DebugSession,
     stackFrames: Array<StackFrame>
   ): Promise<Map<Address, HeapValue>> {
@@ -204,14 +206,14 @@ export class BackendSession {
         (v) => v.variablesReference > 0 && v.type.length > 0
       );
       vars.forEach((v) => {
-        heap = heap.set(v.variablesReference, this.extractHeapValue(v));
+        heap = heap.set(v.variablesReference, this.mapVariableToHeapValue(v));
       });
     }
 
     return heap;
   }
 
-  public static async next(session: vscode.DebugSession, threadId: number) {
+  public static async nextRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('stepIn', {
       threadId: threadId,
     });
@@ -245,10 +247,6 @@ export class BackendSession {
         threadId: id,
       })
     ).stackFrames as Array<StackFrame>;
-  }
-
-  private static async threadsRequest(): Promise<Array<Thread>> {
-    return (await vscode.debug.activeDebugSession?.customRequest('threads')).threads as Array<Thread>;
   }
 
   /**
