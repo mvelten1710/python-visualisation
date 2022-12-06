@@ -4,20 +4,40 @@ body {
   width: 100%;
   overflow: hidden;
 }
-.column {
-  width: 100%;
+
+* {
+  box-sizing: border-box;
 }
 
-#framesTitle {
-  margin: 5px;
-  font-size: 15px;
-  font-weight: 500;
-  text-align: start;
+.floating {
+  float: left;
+  width: 50%;
+  padding: 10px;
+  height: 450px; /* Should be removed. Only for demonstration */
 }
 
-#objectsTitle {
-  margin: 5px;
-  font-size: 15px;
+/* Clear floats after the columns */
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.dataRow {
+  justify-content: space-evenly;
+}
+
+.title {
   font-weight: 500;
-  text-align: end;
+}
+
+.line {
+  display: flex;
+  flex-direction: row;
+}
+
+#frameItemTitle {
+  border-style: hidden, hidden, hidden, solid;
+  border-color: red;
+  font-weight: 700;
 }

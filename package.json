@@ -21,11 +21,6 @@
           "type": "boolean",
           "default": false,
           "description": "Creates a file with backend Trace (for debugging purposes)"
-        },
-        "python-visualization.onDemandTrace": {
-          "type": "boolean",
-          "default": true,
-          "description": "If Trace should be generated on demand or beforehand"
         }
       }
     },
@@ -73,6 +68,7 @@
     "typescript": "^4.7.4"
   },
   "dependencies": {
-    "stringify-json": "^2.0.0"
+    "stringify-json": "^2.0.0",
+    "ts-md5": "^1.3.1"
   }
 }

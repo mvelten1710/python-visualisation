@@ -25,7 +25,7 @@ export class BackendSession {
     this.file = filename;
     this.context = context;
     this.trace = [];
-    this.tracker = createDebugAdapterTracker();
+    this.tracker = createDebugAdapterTracker(context);
     const debugSuccess = await vscode.debug.startDebugging(
       undefined,
       this.getDebugConfiguration(filename)
@@ -173,7 +173,7 @@ export class BackendSession {
       stackFrames.map(
         async (sf) =>
           ({
-            funName: sf.name,
+            frameName: sf.name,
             frameId: sf.id,
             locals: new Map(
               (

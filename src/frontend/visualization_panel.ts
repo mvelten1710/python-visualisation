@@ -2,19 +2,18 @@ import * as vscode from 'vscode';
 import path = require('path');
 import { createDecorationOptions, getOpenEditors, getWorkspaceUri } from '../utils';
 import { currentLineHighlightingType, Variables } from '../constants';
-import { BackendSession } from '../backend/backend_session';
+import stringify from 'stringify-json';
 
 export class VisualizationPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _style: vscode.Uri;
   private readonly _script: vscode.Uri;
-  private readonly _backendTrace: BackendTrace;
+  private readonly _trace: BackendTrace;
   private _traceIndex: number;
   private _disposables: vscode.Disposable[] = [];
 
-  constructor(context: vscode.ExtensionContext, backendTrace: BackendTrace) {
-    // Do we need to hold the backend trace in memory?
-    this._backendTrace = backendTrace;
+  constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
+    this._trace = trace;
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
       'python-visualisation',
@@ -34,6 +33,7 @@ export class VisualizationPanel {
     this._script = panel.webview.asWebviewUri(scriptFile);
 
     this._panel = panel;
+    this._disposables.push(this._panel);
     this._panel.onDidDispose(this.dispose, null, this._disposables);
 
     // Message Receivers
@@ -65,15 +65,13 @@ export class VisualizationPanel {
           
       </head>
       <body onload="onLoad()">
-          <div class="column">
-            <div class="row" id="viz">
-            <!-- Content of Frames and Objects as custom Table -->
-            </div>
-            <div class="row">
-              <button id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
-              <button id="nextButton" type="button" onclick="onClick('next')">Next</button>
-            </div>
+        <div class="column">
+          <div class="row" id="viz"></div>
+          <div class="row">
+            <button id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
+            <button id="nextButton" type="button" onclick="onClick('next')">Next</button>
           </div>
+        </div>
       </body>
       </html>
       `;
@@ -83,7 +81,7 @@ export class VisualizationPanel {
     // Can be undefined if no editor has focus
     const editor = getOpenEditors();
     if (editor.length === 1) {
-      const line = this._backendTrace[this._traceIndex].line - 1;
+      const line = this._trace[this._traceIndex].line - 1;
       // Line that just executed
       editor[0].setDecorations(
         currentLineHighlightingType,
@@ -94,18 +92,29 @@ export class VisualizationPanel {
 
   private async onClick(type: string) {
     type === 'next' ? ++this._traceIndex : --this._traceIndex;
-    await this.postMessageToWebview();
+    await this.postMessagesToWebview('updateButtons', 'updateContent');
     this.updateLineHighlight();
-    this.updateWebviewContent();
   }
 
-  private async postMessageToWebview() {
-    const nextActive = this._traceIndex < this._backendTrace.length - 1;
-    const prevActive = this._traceIndex > 0;
-    await this._panel.webview.postMessage({
-      command: 'updateButtons',
-      next: nextActive,
-      prev: prevActive,
+  private async postMessagesToWebview(...args: string[]) {
+    args.forEach(async (message) => {
+      switch (message) {
+        case 'updateButtons':
+          const nextActive = this._traceIndex < this._trace.length - 1;
+          const prevActive = this._traceIndex > 0;
+          await this._panel.webview.postMessage({
+            command: 'updateButtons',
+            next: nextActive,
+            prev: prevActive,
+          });
+          break;
+        case 'updateContent':
+          await this._panel.webview.postMessage({
+            command: 'updateContent',
+            traceElem: stringify(this._trace[this._traceIndex]),
+          });
+          break;
+      }
     });
   }
 

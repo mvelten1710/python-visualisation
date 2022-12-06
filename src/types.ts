@@ -44,7 +44,7 @@ type Value =
   | { type: 'ref'; value: Address };
 
 type StackElem = {
-  funName: string;
+  frameName: string;
   frameId: number;
   locals: Map<string, Value>;
 };

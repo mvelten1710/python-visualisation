@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import util = require('util');
 import path = require('path');
-import stringify = require('stringify-json');
 import { Variables } from './constants';
 import { BackendSession } from './backend/backend_session';
 import { initFrontend } from './frontend/frontend';
+import { Md5 } from 'ts-md5';
+import stringify from 'stringify-json';
 
 /**
  *  Gets the uri for the currently opened workspace, if one is opened.
@@ -19,7 +20,7 @@ export async function createBackendTraceOutput(backendTrace: BackendTrace, fileP
   const fileName = path.basename(filePath).split('.')[0];
   await vscode.workspace.fs.writeFile(
     vscode.Uri.parse(vscode.workspace.workspaceFolders![0].uri.path + `/backend_trace_${fileName}.json`),
-    new util.TextEncoder().encode(stringify.default(backendTrace))
+    new util.TextEncoder().encode(stringify(backendTrace))
   );
 }
 
@@ -89,6 +90,19 @@ export function getConfigValue<T>(configAttribute: string): T | undefined {
   return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttribute);
 }
 
+export function generateMD5Hash(content: string): string {
+  return Md5.hashStr(content);
+}
+
+// Read File -> Create Hash -> Save Hash -> Compare saved Hash with Hash from file directly -> If Hash is same use already generated Trace, If not start debugger
+export async function setContextState(context: vscode.ExtensionContext, key: string, value: any): Promise<void> {
+  return await context.globalState.update(key, value);
+}
+
+export async function getContextState<T>(context: vscode.ExtensionContext, key: string): Promise<T | undefined> {
+  return await context.globalState.get<T>(key);
+}
+
 /**
  * Register a debug adapter tracker factory for the given debug type.
  * It listens for stopped events and creates a BackendTraceElem in the Backend
@@ -96,7 +110,7 @@ export function getConfigValue<T>(configAttribute: string): T | undefined {
  *
  * @returns A Disposable that unregisters this factory when being disposed.
  */
-export function createDebugAdapterTracker(): vscode.Disposable {
+export function createDebugAdapterTracker(context: vscode.ExtensionContext): vscode.Disposable {
   return vscode.debug.registerDebugAdapterTrackerFactory('python', {
     createDebugAdapterTracker(session: vscode.DebugSession) {
       return {
@@ -117,6 +131,7 @@ export function createDebugAdapterTracker(): vscode.Disposable {
             if (getConfigValue<boolean>('outputBackendTrace')) {
               await createBackendTraceOutput(BackendSession.trace, BackendSession.file!.path);
             }
+            await setContextState(context, Variables.TRACE_KEY, stringify(BackendSession.trace));
             await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(BackendSession.file));
             // Init Frontend with the backend trace
             await initFrontend(BackendSession.context, BackendSession.trace);

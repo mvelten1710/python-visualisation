@@ -10,46 +10,64 @@ window.addEventListener('message', event => {
       document.querySelector('#prevButton').disabled = !message.prev;
       break;
     case 'updateContent':
-      //
+      updateVisualization(JSON.parse(message.traceElem));
       break;
   }
 });
 
-function loadVizData() {
-  const dataBody = document.getElementById('viz');
-
-  console.log(dataBody);
-  
+// TODO: onLoad Case needs to be covered and implement message from extension to js script above and in visualization_panel.ts
+function updateVisualization(traceElem) {
   const data = `
-    <table>
-      <tbody>
-        <tr>
-          <td id="stack">
-            <div id="frames">
-              <div id="framesTitle">Frames</div>
-            </div>
-          </dt>
-          <td id="heap">
-            <div id="objects">
-              <div id="objectsTitle">Objects</div>
-            </div>
-          </dt>
-        </tr>
-      </tbody>
-    </table>
+    <div class="column floating" id="frames">
+      <div class="row">Frames</div>
+      <div class="row" id="frameItems">
+        ${traceElem.stack.map(stackElem => frameItem(stackElem)).join('')}
+      </div>
+    </div>
+
+    <div class="column floating" id="objects">
+      <div class="row">Objects</div>
+    </div>
   `;
+  document.getElementById('viz').innerHTML = data;
+}
 
-  // TODO: Think about if we insert the whole HTML string or
-  // just append and remove elements?
+// ?: stands for the number of the item
+function frameItem(stackElem) {
+  const keys = Array.from(Object.keys(stackElem.locals));
+  const values = Array.from(Object.values(stackElem.locals));
+  return `
+    <div class="column" id="frameItem?">
+      <div class="row" id="frameItemTitle">${stackElem.frameName === '<module>' ? 'Global' : stackElem.frameName}</div>
+      <div class="column" id="frameItemSubItems">
+        ${keys.map((name, index) => frameSubItem(name, values[index])).join('')}
+      </div>
+    </div>
+  `;
+}
 
-  // Inserting the data just at the beginning of the HTML element
-  dataBody.innerHTML = data;
+function frameSubItem(name, value) {
+  return `
+    <div class="line" id="subItem?">
+      <div>${value.type}-</div>
+      <div>${name}-</div>
+      <div>${value.value}</div>
+    </div>
+  `;
+}
+
+function createRefArrow() {
+
+}
+
+
+function objectItem() {
+
 }
 
 function onLoad() {
   document.querySelector('#nextButton').disabled = false;
   document.querySelector('#prevButton').disabled = true;
-  loadVizData();
 }
 
 async function onClick(type) {

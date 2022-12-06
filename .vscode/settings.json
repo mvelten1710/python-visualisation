@@ -12,6 +12,4 @@
     // Outputs the backend trace into a file for debugging purposes
     "python-visualization.outputBackendTrace": false,
 
-    "python-visualization.onDemandTrace": false
-
 }
