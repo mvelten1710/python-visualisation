@@ -1,19 +1,19 @@
 import * as vscode from 'vscode';
 import path = require('path');
-import { createDecorationOptions, getOpenEditors, getWorkspaceUri } from '../utils';
-import { currentLineHighlightingType, Variables } from '../constants';
+import { backendToFrontend, createDecorationOptions, getOpenEditors } from '../utils';
+import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
 import stringify from 'stringify-json';
 
 export class VisualizationPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _style: vscode.Uri;
   private readonly _script: vscode.Uri;
-  private readonly _trace: BackendTrace;
+  private readonly _trace: FrontendTrace;
   private _traceIndex: number;
   private _disposables: vscode.Disposable[] = [];
 
   constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
-    this._trace = trace;
+    this._trace = trace.map(backendToFrontend);
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
       'python-visualisation',
@@ -66,7 +66,15 @@ export class VisualizationPanel {
       </head>
       <body onload="onLoad()">
         <div class="column">
-          <div class="row" id="viz"></div>
+          <div class="row" id="viz">
+            <div class="column floating" id="frames">
+              <div class="row">Frames</div>
+            </div>
+    
+            <div class="column floating" id="objects">
+              <div class="row">Objects</div>
+            </div>
+          </div>
           <div class="row">
             <button id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
             <button id="nextButton" type="button" onclick="onClick('next')">Next</button>
@@ -79,14 +87,28 @@ export class VisualizationPanel {
 
   private updateLineHighlight() {
     // Can be undefined if no editor has focus
+    // TODO: Better editor selection for line highlighting
     const editor = getOpenEditors();
     if (editor.length === 1) {
-      const line = this._trace[this._traceIndex].line - 1;
-      // Line that just executed
-      editor[0].setDecorations(
-        currentLineHighlightingType,
-        createDecorationOptions(new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999)))
-      );
+      const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
+      const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+
+      nextLine > -1
+        ? editor[0].setDecorations(
+            nextLineExecuteHighlightType,
+            createDecorationOptions(
+              new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
+            )
+          )
+        : undefined;
+      currentLine > -1
+        ? editor[0].setDecorations(
+            currentLineExecuteHighlightType,
+            createDecorationOptions(
+              new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
+            )
+          )
+        : undefined;
     }
   }
 
@@ -111,7 +133,7 @@ export class VisualizationPanel {
         case 'updateContent':
           await this._panel.webview.postMessage({
             command: 'updateContent',
-            traceElem: stringify(this._trace[this._traceIndex]),
+            traceElem: this._trace[this._traceIndex],
           });
           break;
       }
@@ -119,16 +141,6 @@ export class VisualizationPanel {
   }
 
   public async dispose() {
-    // Try to delete the temp_file.py when webview is closed
-    const workspaceUri = getWorkspaceUri();
-    if (workspaceUri) {
-      try {
-        await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
-      } catch (e) {
-        await vscode.window.showInformationMessage('Temp File was already deleted');
-      }
-    }
-
     while (this._disposables.length) {
       const disposable = this._disposables.pop();
       if (disposable) {

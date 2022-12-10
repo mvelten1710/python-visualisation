@@ -10,7 +10,7 @@ window.addEventListener('message', event => {
       document.querySelector('#prevButton').disabled = !message.prev;
       break;
     case 'updateContent':
-      updateVisualization(JSON.parse(message.traceElem));
+      updateVisualization(message.traceElem);
       break;
   }
 });
@@ -20,13 +20,12 @@ function updateVisualization(traceElem) {
   const data = `
     <div class="column floating" id="frames">
       <div class="row">Frames</div>
-      <div class="row" id="frameItems">
-        ${traceElem.stack.map(stackElem => frameItem(stackElem)).join('')}
-      </div>
+      ${traceElem[1]}
     </div>
 
     <div class="column floating" id="objects">
       <div class="row">Objects</div>
+      ${traceElem[2]}
     </div>
   `;
   document.getElementById('viz').innerHTML = data;

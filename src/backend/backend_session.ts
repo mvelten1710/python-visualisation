@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
 
 export class BackendSession {
-  static file: vscode.Uri;
+  static originalFile: vscode.Uri;
+  static tempFile: vscode.Uri;
   static context: vscode.ExtensionContext;
   static trace: BackendTrace = [];
   static tracker: vscode.Disposable;
@@ -11,26 +12,23 @@ export class BackendSession {
 
   /**
    * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
-   * @param filename the name of the main file that needs to be debugged for visualization later on
+   * @param tempFile the name of the main file that needs to be debugged for visualization later on
    */
   public static async startDebugging(
     context: vscode.ExtensionContext,
-    filename: vscode.Uri | undefined
+    originalFile: vscode.Uri,
+    tempFile: vscode.Uri
   ): Promise<boolean> {
-    if (!filename) {
-      return !!filename;
-    }
-
-    // TODO: Check before new debug session, if there are old values (like the trace) that can be reused!
-    this.file = filename;
+    this.originalFile = originalFile;
+    this.tempFile = tempFile;
     this.context = context;
     this.trace = [];
     this.tracker = createDebugAdapterTracker(context);
     const debugSuccess = await vscode.debug.startDebugging(
       undefined,
-      this.getDebugConfiguration(filename)
+      this.getDebugConfiguration(this.tempFile)
       // FIX: When Milestone November 2022 releases (on 2. December) these options are available to hide debug interface
-      //{ suppressDebugStatusbar: true, suppressDebugToolbar: true, suppressDebugView: true}
+      // { suppressDebugStatusbar: true, suppressDebugToolbar: true, suppressDebugView: true}
     );
     await this.initializeRequest();
 
@@ -152,9 +150,11 @@ export class BackendSession {
    */
   private static mapVariablesToGlobals(globalVars: Array<Variable>): Map<string, Value> {
     return new Map(
-      globalVars.map((v) => {
-        return [v.name, this.mapVariableToValue(v)];
-      })
+      globalVars
+        .filter((v) => v.name !== 'special variables' && v.name !== 'function variables')
+        .map((v) => {
+          return [v.name, this.mapVariableToValue(v)];
+        })
     );
   }
 
@@ -178,9 +178,11 @@ export class BackendSession {
             locals: new Map(
               (
                 await this.variablesRequest(session, (await this.scopesRequest(session, sf.id))[0].variablesReference)
-              ).map((v) => {
-                return [v.name, this.mapVariableToValue(v)];
-              })
+              )
+                .filter((v) => v.name !== 'special variables' && v.name !== 'function variables')
+                .map((v) => {
+                  return [v.name, this.mapVariableToValue(v)];
+                })
             ),
           } as StackElem)
       )

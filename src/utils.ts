@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import util = require('util');
 import path = require('path');
-import { Variables } from './constants';
+import { Commands, Variables } from './constants';
 import { BackendSession } from './backend/backend_session';
 import { initFrontend } from './frontend/frontend';
 import { Md5 } from 'ts-md5';
@@ -80,6 +80,14 @@ export function createDecorationOptions(range: vscode.Range): vscode.DecorationO
   ];
 }
 
+export async function showTextDocument(file: vscode.Uri) {
+  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
+}
+
+export async function deleteTempFile(workspaceUri: vscode.Uri) {
+  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
+}
+
 /**
  * Returns the value of the given config attribute
  *
@@ -101,6 +109,81 @@ export async function setContextState(context: vscode.ExtensionContext, key: str
 
 export async function getContextState<T>(context: vscode.ExtensionContext, key: string): Promise<T | undefined> {
   return await context.globalState.get<T>(key);
+}
+
+export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceElem {
+  // Filter "special variables" & "function variables" out
+  // Convert variables to html elements so that they can be used right away
+  const frameItems = `
+    <div class="row" id="frameItems">
+      ${traceElem.stack.map((stackElem) => frameItem(stackElem)).join('')}
+    </div>
+  `;
+
+  const keys = Array.from(Object.keys(traceElem.heap));
+  const values = Array.from(Object.values(traceElem.heap));
+  const objectItems = `
+    <div class="row" id="objectItems">
+      ${keys.map((name, index) => objectItem(name, values[index])).join('')}
+    <div>
+  `;
+  return [traceElem.line, frameItems, objectItems];
+}
+
+function objectItem(name: string, value: HeapValue): string {
+  return `
+    <div class="vertical" id="objectItem?">
+      <div>${value.type}</div>
+      <div>${heapValue(name, value)}</div>
+    </div>
+  `;
+}
+
+function heapValue(name: string, value: HeapValue): string {
+  let result = '';
+  switch (value.type) {
+    case 'dict':
+      break;
+    case 'list':
+      result = `
+        <div id="heapStartPointer${name}">ROFL</div>
+      `;
+      break;
+    case 'object':
+      break;
+    case 'tuple':
+      break;
+  }
+  return result;
+}
+
+// ?: stands for the number of the item
+function frameItem(stackElem: StackElem): string {
+  const keys = Array.from(stackElem.locals.keys());
+  const values = Array.from(stackElem.locals.values());
+  return `
+    <div class="column" id="frameItem?">
+      <div class="row" id="frameItemTitle">
+        ${stackElem.frameName === '<module>' ? 'Global' : stackElem.frameName}
+      </div>
+      <div class="column" id="frameItemSubItems">
+        ${keys.map((name, index) => frameSubItem(name, values[index])).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function frameSubItem(name: string, value: Value): string {
+  return `
+    <div class="horizontal" id="subItem?">
+      <div>${value.type}-</div>
+      <div>${name}-</div>
+      <div id="heapStartPointer
+      ${value.type === 'ref' ? value.value : ''}">
+        ${value.value}
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -129,11 +212,21 @@ export function createDebugAdapterTracker(context: vscode.ExtensionContext): vsc
           // Call Frontend from here to start with trace
           if (BackendSession.trace) {
             if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.file!.path);
+              await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile!.path);
             }
-            await setContextState(context, Variables.TRACE_KEY, stringify(BackendSession.trace));
-            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(BackendSession.file));
-            // Init Frontend with the backend trace
+
+            // Save the Backend Trace for later use
+            await setContextState(
+              context,
+              Variables.TRACE_KEY + BackendSession.originalFile.fsPath,
+              stringify(BackendSession.trace)
+            );
+
+            // Delete temp file
+            await deleteTempFile(getWorkspaceUri()!);
+            // Show the original file again
+            await showTextDocument(BackendSession.originalFile);
+            // Init frontend with the backend trace
             await initFrontend(BackendSession.context, BackendSession.trace);
           }
           BackendSession.tracker.dispose();

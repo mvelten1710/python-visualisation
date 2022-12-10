@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Commands, Variables } from '../constants';
 import { initFrontend } from '../frontend/frontend';
 import {
-  createTempFileFromCurrentEditor,
+  createTempFileFromCurrentEditor as createTempFileFromContent,
   generateMD5Hash,
   getContextState,
   getFileContent,
@@ -22,23 +22,24 @@ export async function initExtension(
   const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
   // Check if Main File could be saved and the program can continue
   if (startedEditor.length > 0 && (await startedEditor[0].document.save())) {
-    await vscode.commands.executeCommand(Commands.CLOSE_EDITOR);
+    // Get content of file to create temp file
     const content = await getFileContent(file);
-    const tempFileUri = await createTempFileFromCurrentEditor(content);
-
+    // Create new hash based on file content and old hash from previous run
     const newHash = generateMD5Hash(content);
-    const oldHash = await getContextState<string>(context, Variables.HASH_KEY);
+    const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
 
     // Based on the new Hash its decided if debugger is run or not
     if (oldHash !== newHash) {
-      await setContextState(context, Variables.HASH_KEY, newHash);
+      // Close currently focused editor
+      await vscode.commands.executeCommand(Commands.CLOSE_EDITOR);
+      await setContextState(context, Variables.HASH_KEY + file.fsPath, newHash);
+      const tempFileUri = await createTempFileFromContent(content);
       tempFileUri
-        ? await generateBackendTrace(context, tempFileUri)
+        ? await generateBackendTrace(context, file, tempFileUri)
         : vscode.window.showErrorMessage("Error Python-Visualization: Backend Trace couldn't be generated!");
     } else {
-      const trace = await getContextState<string>(context, Variables.TRACE_KEY);
-      if (trace && tempFileUri) {
-        await vscode.window.showTextDocument(tempFileUri);
+      const trace = await getContextState<string>(context, Variables.TRACE_KEY + file.fsPath);
+      if (trace) {
         await initFrontend(context, JSON.parse(trace));
       } else {
         await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
@@ -48,11 +49,12 @@ export async function initExtension(
   return;
 }
 
-async function generateBackendTrace(context: vscode.ExtensionContext, filename: vscode.Uri | undefined): Promise<void> {
-  if (!filename) {
-    return;
-  }
-  if (!(await BackendSession.startDebugging(context, filename))) {
+async function generateBackendTrace(
+  context: vscode.ExtensionContext,
+  originalFile: vscode.Uri,
+  tempFile: vscode.Uri
+): Promise<void> {
+  if (!(await BackendSession.startDebugging(context, originalFile, tempFile))) {
     await vscode.window.showErrorMessage(
       'Error Python-Visualization: Debug Session could not be started!\nStopping...'
     );

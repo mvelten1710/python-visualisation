@@ -1,21 +1,6 @@
-// Event Types for the Frontend
+// State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
-type FrontendTraceElem = VarAssign | FunCall | ReturnCall;
-type VarAssign = {
-  kind: 'varAssign';
-  varId: string;
-  varName: string;
-  value: Primitive;
-};
-type FunCall = {
-  kind: 'funCall';
-  funName: string;
-  args: Array<Primitive>;
-};
-type ReturnCall = {
-  kind: 'returnCall';
-  value: Primitive;
-};
+type FrontendTraceElem = [number, string, string];
 
 // ############################################################################################
 // State Types for the Backend

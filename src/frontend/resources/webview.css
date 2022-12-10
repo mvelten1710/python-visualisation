@@ -31,9 +31,14 @@ body {
   font-weight: 500;
 }
 
-.line {
+.horizontal {
   display: flex;
   flex-direction: row;
+}
+
+.vertical {
+  display: flex;
+  flex-direction: column;
 }
 
 #frameItemTitle {
