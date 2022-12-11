@@ -68,11 +68,13 @@ export class VisualizationPanel {
         <div class="column">
           <div class="row" id="viz">
             <div class="column floating" id="frames">
-              <div class="row">Frames</div>
+              <div class="row title">Frames</div>
+              <div class="divider"></div>
             </div>
     
             <div class="column floating" id="objects">
-              <div class="row">Objects</div>
+              <div class="row title">Objects</div>
+              <div class="divider"></div>
             </div>
           </div>
           <div class="row">

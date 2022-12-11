@@ -16,6 +16,12 @@ body {
   height: 450px; /* Should be removed. Only for demonstration */
 }
 
+.divider {
+  margin: 2px 2px 10px 0;
+  border-top: 2px solid #bbb;
+  border-radius: 5px;
+}
+
 /* Clear floats after the columns */
 .row:after {
   content: "";
@@ -28,21 +34,41 @@ body {
 }
 
 .title {
+  font-weight: 700;
+}
+
+.subtitle {
   font-weight: 500;
 }
 
-.horizontal {
+.frame-item {
+  margin: 2px 0 2px 0;
+}
+
+.frame {
+  border-left: 4px solid grey;
+  padding-left: 5px;
+  background-color: rgba(128, 128, 128, 0.2);
+}
+
+.current-frame {
+  border-left: 4px solid blue;
+  padding-left: 5px;
+  background-color: rgba(77, 100, 255, 0.2);
+}
+
+.row {
   display: flex;
   flex-direction: row;
 }
 
-.vertical {
+.column {
   display: flex;
   flex-direction: column;
 }
 
-#frameItemTitle {
-  border-style: hidden, hidden, hidden, solid;
-  border-color: red;
-  font-weight: 700;
+.box {
+  padding: 10px;
+  border: 1px solid wheat;
+  background-color: grey;
 }

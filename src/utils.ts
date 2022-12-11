@@ -115,8 +115,8 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   // Filter "special variables" & "function variables" out
   // Convert variables to html elements so that they can be used right away
   const frameItems = `
-    <div class="row" id="frameItems">
-      ${traceElem.stack.map((stackElem) => frameItem(stackElem)).join('')}
+    <div class="column" id="frameItems">
+      ${traceElem.stack.map((stackElem, index) => frameItem(index, stackElem)).join('')}
     </div>
   `;
 
@@ -132,41 +132,51 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
 
 function objectItem(name: string, value: HeapValue): string {
   return `
-    <div class="vertical" id="objectItem?">
+    <div class="column" id="objectItem?">
       <div>${value.type}</div>
       <div>${heapValue(name, value)}</div>
     </div>
   `;
 }
 
-function heapValue(name: string, value: HeapValue): string {
+function heapValue(name: string, heapValue: HeapValue): string {
   let result = '';
-  switch (value.type) {
+  switch (heapValue.type) {
     case 'dict':
-      break;
-    case 'list':
-      result = `
-        <div id="heapStartPointer${name}">ROFL</div>
-      `;
       break;
     case 'object':
       break;
+    case 'list':
     case 'tuple':
+      result = `
+        <div class="row" id="heapStartPointer${name}">
+          ${heapValue.value.map((v, i) => listValue(v, i)).join('')}
+        </div>
+      `;
       break;
   }
   return result;
 }
 
-// ?: stands for the number of the item
-function frameItem(stackElem: StackElem): string {
-  const keys = Array.from(stackElem.locals.keys());
-  const values = Array.from(stackElem.locals.values());
+function listValue(value: Value, index: number) {
   return `
-    <div class="column" id="frameItem?">
-      <div class="row" id="frameItemTitle">
+    <div class="box list column">
+      <div class="row">${index}</div>
+      <div class="row">${value}</div>
+    </div>
+  `;
+}
+
+// ?: stands for the number of the item
+function frameItem(index: number, stackElem: StackElem): string {
+  const keys = Array.from(Object.keys(stackElem.locals));
+  const values = Array.from(Object.values(stackElem.locals));
+  return `
+    <div class="column frame-item" id="frameItem?">
+      <div class="row subtitle" id="frameItemTitle">
         ${stackElem.frameName === '<module>' ? 'Global' : stackElem.frameName}
       </div>
-      <div class="column" id="frameItemSubItems">
+      <div class="column ${index === 0 ? 'current-frame' : 'frame'}" id="frameItemSubItems">
         ${keys.map((name, index) => frameSubItem(name, values[index])).join('')}
       </div>
     </div>
@@ -175,7 +185,7 @@ function frameItem(stackElem: StackElem): string {
 
 function frameSubItem(name: string, value: Value): string {
   return `
-    <div class="horizontal" id="subItem?">
+    <div class="row frame-item" id="subItem?">
       <div>${value.type}-</div>
       <div>${name}-</div>
       <div id="heapStartPointer
@@ -227,7 +237,15 @@ export function createDebugAdapterTracker(context: vscode.ExtensionContext): vsc
             // Show the original file again
             await showTextDocument(BackendSession.originalFile);
             // Init frontend with the backend trace
-            await initFrontend(BackendSession.context, BackendSession.trace);
+            const trace = await getContextState<string>(
+              context,
+              Variables.TRACE_KEY + BackendSession.originalFile.fsPath
+            );
+            if (trace) {
+              await initFrontend(context, JSON.parse(trace));
+            } else {
+              await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
+            }
           }
           BackendSession.tracker.dispose();
         },

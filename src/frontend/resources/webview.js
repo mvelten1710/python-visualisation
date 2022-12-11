@@ -19,12 +19,14 @@ window.addEventListener('message', event => {
 function updateVisualization(traceElem) {
   const data = `
     <div class="column floating" id="frames">
-      <div class="row">Frames</div>
+      <div class="row title">Frames</div>
+      <div class="divider"></div>
       ${traceElem[1]}
     </div>
 
     <div class="column floating" id="objects">
-      <div class="row">Objects</div>
+      <div class="row title">Objects</div>
+      <div class="divider"></div>
       ${traceElem[2]}
     </div>
   `;

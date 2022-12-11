@@ -117,6 +117,8 @@ export class BackendSession {
    * @param variable Simple Variable that gets mapped to a HeapValue
    * @returns HeapValue a object that resides in the heap
    */
+  // TODO: Rework parsing of values in this function!
+  // FIXES: Array with strings or array with ints and strings
   private static mapVariableToHeapValue(variable: Variable): HeapValue {
     switch (variable.type) {
       case 'list':
