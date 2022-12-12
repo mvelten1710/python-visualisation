@@ -115,7 +115,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   // Filter "special variables" & "function variables" out
   // Convert variables to html elements so that they can be used right away
   const frameItems = `
-    <div class="column" id="frameItems">
+    <div class="column scrollable" id="frameItems">
       ${traceElem.stack.map((stackElem, index) => frameItem(index, stackElem)).join('')}
     </div>
   `;
@@ -123,7 +123,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   const keys = Array.from(Object.keys(traceElem.heap));
   const values = Array.from(Object.values(traceElem.heap));
   const objectItems = `
-    <div class="row" id="objectItems">
+    <div class="row scrollable" id="objectItems">
       ${keys.map((name, index) => objectItem(name, values[index])).join('')}
     <div>
   `;
@@ -149,7 +149,7 @@ function heapValue(name: string, heapValue: HeapValue): string {
     case 'list':
     case 'tuple':
       result = `
-        <div class="row" id="heapStartPointer${name}">
+        <div class="row" id="heapEndPointer${name}">
           ${heapValue.value.map((v, i) => listValue(v, i)).join('')}
         </div>
       `;
@@ -186,10 +186,10 @@ function frameItem(index: number, stackElem: StackElem): string {
 function frameSubItem(name: string, value: Value): string {
   return `
     <div class="row frame-item" id="subItem?">
-      <div>${value.type}-</div>
-      <div>${name}-</div>
-      <div id="heapStartPointer
-      ${value.type === 'ref' ? value.value : ''}">
+      <div class="name-border">
+        ${name}
+      </div>
+      <div class="value-border" ${value.type === 'ref' ? 'heapStartPointer' + value.value : ''}>
         ${value.value}
       </div>
     </div>

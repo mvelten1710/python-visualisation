@@ -5,12 +5,11 @@ import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '.
 import stringify from 'stringify-json';
 
 export class VisualizationPanel {
-  private readonly _panel: vscode.WebviewPanel;
+  private _panel: vscode.WebviewPanel | undefined;
   private readonly _style: vscode.Uri;
   private readonly _script: vscode.Uri;
   private readonly _trace: FrontendTrace;
   private _traceIndex: number;
-  private _disposables: vscode.Disposable[] = [];
 
   constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
     this._trace = trace.map(backendToFrontend);
@@ -33,8 +32,21 @@ export class VisualizationPanel {
     this._script = panel.webview.asWebviewUri(scriptFile);
 
     this._panel = panel;
-    this._disposables.push(this._panel);
-    this._panel.onDidDispose(this.dispose, null, this._disposables);
+
+    this._panel.onDidChangeViewState(async (e) => {
+      if (e.webviewPanel.active) {
+        await this.postMessagesToWebview('updateContent');
+      }
+    });
+
+    this._panel.onDidDispose(
+      () => {
+        this.updateLineHighlight(true);
+        this._panel = undefined;
+      },
+      null,
+      context.subscriptions
+    );
 
     // Message Receivers
     this._panel.webview.onDidReceiveMessage(
@@ -45,7 +57,7 @@ export class VisualizationPanel {
         }
       },
       undefined,
-      this._disposables
+      context.subscriptions
     );
 
     this.updateLineHighlight();
@@ -53,33 +65,41 @@ export class VisualizationPanel {
   }
 
   public updateWebviewContent() {
-    this._panel.webview.html = `
+    this._panel!.webview.html = `
       <!DOCTYPE html>
       <html lang="en">
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <link rel="stylesheet" href="${this._style}">
-          <script src="${this._script}"></script> 
+          <script src="${this._script}"></script>
           <title>Code Visualization</title>
           
       </head>
       <body onload="onLoad()">
         <div class="column">
           <div class="row" id="viz">
-            <div class="column floating" id="frames">
+            <div class="column floating-left" id="frames">
               <div class="row title">Frames</div>
               <div class="divider"></div>
             </div>
     
-            <div class="column floating" id="objects">
+            <div class="column floating-right" id="objects">
               <div class="row title">Objects</div>
               <div class="divider"></div>
             </div>
           </div>
-          <div class="row">
-            <button id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
-            <button id="nextButton" type="button" onclick="onClick('next')">Next</button>
+          <div class="row margin-vertical">
+            <div class="current-line-color"></div>
+            <b class="margin-horizontal">Just executed line</b>
+          </div>
+          <div class="row margin-vertical">
+            <div class="next-line-color"></div>
+            <b class="margin-horizontal">Next line to be executed</b>
+          </div>
+          <div class="row margin-vertical">
+            <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
+            <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
           </div>
         </div>
       </body>
@@ -87,30 +107,35 @@ export class VisualizationPanel {
       `;
   }
 
-  private updateLineHighlight() {
+  private updateLineHighlight(remove: boolean = false) {
     // Can be undefined if no editor has focus
-    // TODO: Better editor selection for line highlighting
+    // FIXME: Better editor selection for line highlighting
     const editor = getOpenEditors();
     if (editor.length === 1) {
-      const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
-      const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+      if (remove) {
+        editor[0].setDecorations(nextLineExecuteHighlightType, []);
+        editor[0].setDecorations(currentLineExecuteHighlightType, []);
+      } else {
+        const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
+        const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
 
-      nextLine > -1
-        ? editor[0].setDecorations(
-            nextLineExecuteHighlightType,
-            createDecorationOptions(
-              new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
+        nextLine > -1
+          ? editor[0].setDecorations(
+              nextLineExecuteHighlightType,
+              createDecorationOptions(
+                new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
+              )
             )
-          )
-        : undefined;
-      currentLine > -1
-        ? editor[0].setDecorations(
-            currentLineExecuteHighlightType,
-            createDecorationOptions(
-              new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
+          : undefined;
+        currentLine > -1
+          ? editor[0].setDecorations(
+              currentLineExecuteHighlightType,
+              createDecorationOptions(
+                new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
+              )
             )
-          )
-        : undefined;
+          : undefined;
+      }
     }
   }
 
@@ -126,28 +151,19 @@ export class VisualizationPanel {
         case 'updateButtons':
           const nextActive = this._traceIndex < this._trace.length - 1;
           const prevActive = this._traceIndex > 0;
-          await this._panel.webview.postMessage({
+          await this._panel!.webview.postMessage({
             command: 'updateButtons',
             next: nextActive,
             prev: prevActive,
           });
           break;
         case 'updateContent':
-          await this._panel.webview.postMessage({
+          await this._panel!.webview.postMessage({
             command: 'updateContent',
             traceElem: this._trace[this._traceIndex],
           });
           break;
       }
     });
-  }
-
-  public async dispose() {
-    while (this._disposables.length) {
-      const disposable = this._disposables.pop();
-      if (disposable) {
-        disposable.dispose();
-      }
-    }
   }
 }

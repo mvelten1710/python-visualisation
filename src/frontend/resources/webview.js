@@ -11,6 +11,7 @@ window.addEventListener('message', event => {
       break;
     case 'updateContent':
       updateVisualization(message.traceElem);
+      createRefArrows(message.traceElem);
       break;
   }
 });
@@ -18,13 +19,13 @@ window.addEventListener('message', event => {
 // TODO: onLoad Case needs to be covered and implement message from extension to js script above and in visualization_panel.ts
 function updateVisualization(traceElem) {
   const data = `
-    <div class="column floating" id="frames">
+    <div class="column floating-left" id="frames">
       <div class="row title">Frames</div>
       <div class="divider"></div>
       ${traceElem[1]}
     </div>
 
-    <div class="column floating" id="objects">
+    <div class="column floating-right" id="objects">
       <div class="row title">Objects</div>
       <div class="divider"></div>
       ${traceElem[2]}
@@ -57,8 +58,17 @@ function frameSubItem(name, value) {
   `;
 }
 
-function createRefArrow() {
-
+function createRefArrows(traceElem) {
+  const tags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
+  if (tags) {
+    tags.forEach((key) => {
+      const line = new LeaderLine(
+        document.getElementById('heapStartPointer' + key),
+        document.getElementById('heapEndPointer' + key)
+      );
+      line.show();
+    });
+  }
 }
 
 

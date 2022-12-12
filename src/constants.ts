@@ -14,11 +14,11 @@ export namespace Variables {
 }
 
 export const nextLineExecuteHighlightType = vscode.window.createTextEditorDecorationType({
-  backgroundColor: 'rgba(255,255,0,0.15)', // Yellow
+  backgroundColor: 'rgba(255, 255, 0, 0.25)', // Yellow
   isWholeLine: true,
 });
 
 export const currentLineExecuteHighlightType = vscode.window.createTextEditorDecorationType({
-  backgroundColor: 'rgba(44, 199, 85, 0.15)', // Green
+  backgroundColor: 'rgba(44, 199, 85, 0.25)', // Green
   isWholeLine: true,
 });

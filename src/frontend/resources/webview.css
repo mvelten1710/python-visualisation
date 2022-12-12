@@ -9,11 +9,35 @@ body {
   box-sizing: border-box;
 }
 
-.floating {
+.floating-right {
   float: left;
-  width: 50%;
+  width: 65%;
   padding: 10px;
-  height: 450px; /* Should be removed. Only for demonstration */
+  height: 450px;
+}
+
+.floating-left {
+  float: left;
+  width: 35%;
+  padding: 10px;
+  height: 450px;
+  margin-right: 100px;
+}
+
+.scrollable {
+  overflow: scroll;
+}
+
+.current-line-color {
+  border: 6px solid rgba(44, 199, 85, 1);
+  border-radius: 8px;
+  background-color: rgba(44, 199, 85, 1);
+}
+
+.next-line-color {
+  border: 6px solid rgba(255, 255, 0, 1);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 0, 1);
 }
 
 .divider {
@@ -22,11 +46,32 @@ body {
   border-radius: 5px;
 }
 
+.margin-vertical {
+  margin-top: 3px;
+  margin-bottom: 3px;
+}
+
+.margin-horizontal {
+  margin-left: 3px;
+  margin-right: 3px;
+}
+
 /* Clear floats after the columns */
 .row:after {
   content: "";
   display: table;
   clear: both;
+}
+
+.name-border {
+  font-size: 16px;
+  margin-right: 5px;
+}
+
+.value-border {
+  font-size: 16px;
+  border-bottom: 1px solid grey;
+  border-left: 1px solid grey;
 }
 
 .dataRow {
@@ -42,7 +87,8 @@ body {
 }
 
 .frame-item {
-  margin: 2px 0 2px 0;
+  margin: 3px 0 3px 0;
+  justify-content: flex-end;
 }
 
 .frame {
