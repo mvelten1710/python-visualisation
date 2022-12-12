@@ -62,9 +62,10 @@ function createRefArrows(traceElem) {
   const tags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
   if (tags) {
     tags.forEach((key) => {
+      const elem1 = document.getElementById('heapStartPointer' + key);
+      const elem2 = document.getElementById('heapEndPointer' + key);
       const line = new LeaderLine(
-        document.getElementById('heapStartPointer' + key),
-        document.getElementById('heapEndPointer' + key)
+        elem1, elem2
       );
       line.show();
     });

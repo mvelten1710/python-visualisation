@@ -8,6 +8,7 @@ export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
   private readonly _style: vscode.Uri;
   private readonly _script: vscode.Uri;
+  private readonly _lineScript: vscode.Uri;
   private readonly _trace: FrontendTrace;
   private _traceIndex: number;
 
@@ -27,9 +28,11 @@ export class VisualizationPanel {
     // Get path to resource on disk
     const stylesFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.css'));
     const scriptFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.js'));
+    const lineFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'leader-line.min.js'));
     // And get the special URI to use with the webview
     this._style = panel.webview.asWebviewUri(stylesFile);
     this._script = panel.webview.asWebviewUri(scriptFile);
+    this._lineScript = panel.webview.asWebviewUri(lineFile);
 
     this._panel = panel;
 
@@ -73,6 +76,7 @@ export class VisualizationPanel {
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <link rel="stylesheet" href="${this._style}">
           <script src="${this._script}"></script>
+          <script src="${this._lineScript}"></script>
           <title>Code Visualization</title>
           
       </head>

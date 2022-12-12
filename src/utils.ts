@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import util = require('util');
 import path = require('path');
-import { Commands, Variables } from './constants';
+import { Variables } from './constants';
 import { BackendSession } from './backend/backend_session';
 import { initFrontend } from './frontend/frontend';
 import { Md5 } from 'ts-md5';
@@ -189,7 +189,7 @@ function frameSubItem(name: string, value: Value): string {
       <div class="name-border">
         ${name}
       </div>
-      <div class="value-border" ${value.type === 'ref' ? 'heapStartPointer' + value.value : ''}>
+      <div class="value-border" ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : ''}>
         ${value.value}
       </div>
     </div>
