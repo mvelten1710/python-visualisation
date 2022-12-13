@@ -1,5 +1,15 @@
 const vscode = acquireVsCodeApi();
 
+const refTags = [];
+const lineOptions = { 
+  size: 2, 
+  path: 'grid', 
+  startSocket: 'right', 
+  endSocket: 'left', 
+  startPlug: 'square', 
+  endPlug: 'arrow1' 
+};
+
 window.addEventListener('message', event => {
   // Data send from extension
   const message = event.data; 
@@ -11,7 +21,7 @@ window.addEventListener('message', event => {
       break;
     case 'updateContent':
       updateVisualization(message.traceElem);
-      createRefArrows(message.traceElem);
+      updateRefArrows(message.traceElem);
       break;
   }
 });
@@ -34,47 +44,64 @@ function updateVisualization(traceElem) {
   document.getElementById('viz').innerHTML = data;
 }
 
-// ?: stands for the number of the item
-function frameItem(stackElem) {
-  const keys = Array.from(Object.keys(stackElem.locals));
-  const values = Array.from(Object.values(stackElem.locals));
-  return `
-    <div class="column" id="frameItem?">
-      <div class="row" id="frameItemTitle">${stackElem.frameName === '<module>' ? 'Global' : stackElem.frameName}</div>
-      <div class="column" id="frameItemSubItems">
-        ${keys.map((name, index) => frameSubItem(name, values[index])).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function frameSubItem(name, value) {
-  return `
-    <div class="line" id="subItem?">
-      <div>${value.type}-</div>
-      <div>${name}-</div>
-      <div>${value.value}</div>
-    </div>
-  `;
-}
-
-function createRefArrows(traceElem) {
-  const tags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
+function updateRefArrows(traceElem) {
+  const tags = getChangedTags(traceElem);
   if (tags) {
-    tags.forEach((key) => {
-      const elem1 = document.getElementById('heapStartPointer' + key);
-      const elem2 = document.getElementById('heapEndPointer' + key);
+    tags.forEach((tag) => {
+      // Delete Line
+      tag.line.remove();
+      // Create new Line
       const line = new LeaderLine(
-        elem1, elem2
+        tag.elem1, tag.elem2, lineOptions
       );
       line.show();
     });
   }
 }
 
+function getChangedTags(traceElem) {
+  const newTags = getCurrentTags(traceElem);
+  if (refTags.length > 0) {
+    // Check what changed
+    return newTags.filter(nt => {
+      let same = false;
+      for (var i = 0; i < refTags.length; i++) {
+        if(compareElements(nt, rt)) {
+          same = true;
+          nt.line = rt.line;
+          break;
+        }
+      }
+      return !same;
+    });
+  } else {
+    return newTags;
+  }
+}
 
-function objectItem() {
+function getCurrentTags(traceElem) {
+  const tags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
+  return tags.map(t => {
+    return {
+      elem1: document.getElementById('heapStartPointer' + t),
+      elem2: document.getElementById('heapEndPointer' + t),
+      line: undefined
+    };
+  });
+}
 
+function getElements(tag) {
+  return [
+    document.getElementById('heapStartPointer' + tag),
+    document.getElementById('heapEndPointer' + tag)
+  ];
+}
+
+function compareElements(elem1, elem2) {
+  return elem1.style.height === elem2.style.height 
+  && elem1.style.width === elem2.style.width 
+  && elem1.style.x === elem2.style.x 
+  && elem1.style.y === elem2.style.y;
 }
 
 function onLoad() {
