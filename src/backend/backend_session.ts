@@ -7,6 +7,7 @@ export class BackendSession {
   static context: vscode.ExtensionContext;
   static trace: BackendTrace = [];
   static tracker: vscode.Disposable;
+  static newHash: string;
 
   constructor() {}
 
@@ -17,12 +18,14 @@ export class BackendSession {
   public static async startDebugging(
     context: vscode.ExtensionContext,
     originalFile: vscode.Uri,
-    tempFile: vscode.Uri
+    tempFile: vscode.Uri,
+    hash: string
   ): Promise<boolean> {
     this.originalFile = originalFile;
     this.tempFile = tempFile;
     this.context = context;
     this.trace = [];
+    this.newHash = hash;
     this.tracker = createDebugAdapterTracker(context);
     const debugSuccess = await vscode.debug.startDebugging(
       undefined,
@@ -120,28 +123,56 @@ export class BackendSession {
   // TODO: Rework parsing of values in this function!
   // FIXES: Array with strings or array with ints and strings
   private static mapVariableToHeapValue(variable: Variable): HeapValue {
+    // Replacing single quotes with double quotes because of json format
+    const v = this.parseToValidJson(variable);
     switch (variable.type) {
       case 'list':
         return {
           type: 'list',
-          value: JSON.parse(variable.value),
+          value: JSON.parse(v),
         };
       case 'tuple':
         return {
           type: 'tuple',
-          value: JSON.parse(variable.value),
+          value: JSON.parse(v),
         };
       case 'dict':
         return {
           type: 'dict',
-          value: JSON.parse(variable.value),
+          value: JSON.parse(v),
         };
       default:
         return {
           type: 'object',
-          value: JSON.parse(variable.value),
+          value: JSON.parse(v),
         };
     }
+  }
+
+  private static parseToValidJson(variable: Variable): string {
+    return variable.value.replace(/'|(\(|\))|[0-9]+|(True|False)/g, (substring, args) => {
+      let result = '';
+      switch (substring) {
+        case "'":
+          result = '"';
+          break;
+        case 'True':
+          result = JSON.stringify(substring);
+          break;
+        case '(':
+          result = '[';
+          break;
+        case ')':
+          result = ']';
+          break;
+        default:
+          if (!isNaN(Number(substring))) {
+            result = JSON.stringify(substring);
+          }
+          break;
+      }
+      return result;
+    });
   }
 
   /**

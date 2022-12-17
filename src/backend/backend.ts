@@ -32,10 +32,9 @@ export async function initExtension(
     if (oldHash !== newHash) {
       // Close currently focused editor
       await vscode.commands.executeCommand(Commands.CLOSE_EDITOR);
-      await setContextState(context, Variables.HASH_KEY + file.fsPath, newHash);
       const tempFileUri = await createTempFileFromContent(content);
       tempFileUri
-        ? await generateBackendTrace(context, file, tempFileUri)
+        ? await generateBackendTrace(context, file, tempFileUri, newHash)
         : vscode.window.showErrorMessage("Error Python-Visualization: Backend Trace couldn't be generated!");
     } else {
       const trace = await getContextState<string>(context, Variables.TRACE_KEY + file.fsPath);
@@ -52,9 +51,10 @@ export async function initExtension(
 async function generateBackendTrace(
   context: vscode.ExtensionContext,
   originalFile: vscode.Uri,
-  tempFile: vscode.Uri
+  tempFile: vscode.Uri,
+  hash: string
 ): Promise<void> {
-  if (!(await BackendSession.startDebugging(context, originalFile, tempFile))) {
+  if (!(await BackendSession.startDebugging(context, originalFile, tempFile, hash))) {
     await vscode.window.showErrorMessage(
       'Error Python-Visualization: Debug Session could not be started!\nStopping...'
     );

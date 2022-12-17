@@ -123,7 +123,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   const keys = Array.from(Object.keys(traceElem.heap));
   const values = Array.from(Object.values(traceElem.heap));
   const objectItems = `
-    <div class="row scrollable" id="objectItems">
+    <div class="column scrollable" id="objectItems">
       ${keys.map((name, index) => objectItem(name, values[index])).join('')}
     <div>
   `;
@@ -143,6 +143,13 @@ function heapValue(name: string, heapValue: HeapValue): string {
   let result = '';
   switch (heapValue.type) {
     case 'dict':
+      const keys = Array.from(Object.keys(heapValue.value));
+      const values = Array.from(Object.values(heapValue.value));
+      result = `
+        <div class="column" id="heapEndPointer${name}">
+          ${keys.map((key, index) => dictValue(key, values[index])).join('')}
+        </div>
+      `;
       break;
     case 'object':
       break;
@@ -158,11 +165,29 @@ function heapValue(name: string, heapValue: HeapValue): string {
   return result;
 }
 
+function dictValue(key: any, value: Value) {
+  return `
+    <div class="row">
+      <div class="box">
+        ${key}
+      </div>
+      <div class="box" 
+      ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : undefined}>
+        ${value}
+      </div>
+    </div>
+  `;
+}
+
 function listValue(value: Value, index: number) {
   return `
     <div class="box list column">
-      <div class="row">${index}</div>
-      <div class="row">${value}</div>
+      <div class="row">
+        ${index}
+      </div>
+      <div class="row" ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : undefined}>
+        ${value}
+      </div>
     </div>
   `;
 }
@@ -225,6 +250,12 @@ export function createDebugAdapterTracker(context: vscode.ExtensionContext): vsc
               await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile!.path);
             }
 
+            // Save Hash for file when debug was successful
+            await setContextState(
+              context,
+              Variables.HASH_KEY + BackendSession.originalFile.fsPath,
+              BackendSession.newHash
+            );
             // Save the Backend Trace for later use
             await setContextState(
               context,
