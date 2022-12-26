@@ -165,28 +165,28 @@ function heapValue(name: string, heapValue: HeapValue): string {
   return result;
 }
 
-function dictValue(key: any, value: Value) {
+function dictValue(key: any, value: Value): string {
   return `
     <div class="row">
       <div class="box">
         ${key}
       </div>
       <div class="box" 
-      ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : undefined}>
+      ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
         ${value}
       </div>
     </div>
   `;
 }
 
-function listValue(value: Value, index: number) {
+function listValue(value: Value, index: number): string {
   return `
     <div class="box list column">
       <div class="row">
         ${index}
       </div>
-      <div class="row" ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : undefined}>
-        ${value}
+      <div class="row" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+        ${value.value}
       </div>
     </div>
   `;
@@ -249,7 +249,6 @@ export function createDebugAdapterTracker(context: vscode.ExtensionContext): vsc
             if (getConfigValue<boolean>('outputBackendTrace')) {
               await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile!.path);
             }
-
             // Save Hash for file when debug was successful
             await setContextState(
               context,

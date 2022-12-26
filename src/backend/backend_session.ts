@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
+import stringify from 'stringify-json';
+import { Md5 } from 'ts-md5';
+import { isPrimitive } from 'util';
 
 export class BackendSession {
   static originalFile: vscode.Uri;
@@ -53,28 +56,14 @@ export class BackendSession {
     const stackFrames = await this.stackTraceRequest(session, threadId);
 
     const line = stackFrames[0].line;
-    const scopeName = stackFrames[0].name;
 
-    // Extract only the variableReference for Variables
-    const scopes = await this.scopesRequest(session, stackFrames[0].id);
-
-    // Retrieve all variables in global Frame/Scope
-    // Then get Globals (Variables, Functions or Objects)
-    const globalVariables = await this.variablesRequest(session, scopes[scopes.length - 1].variablesReference);
-
-    const globals = this.mapVariablesToGlobals(globalVariables);
-
-    const stack = await this.createStackElements(session, stackFrames);
-
-    const heap = await this.createHeapElements(session, stackFrames);
+    const stackHeap = await this.createStackAndHeap(session, stackFrames);
 
     // Get everthing together to return a BackendTraceElem
     return {
       line: line,
-      scopeName: scopeName,
-      globals: globals,
-      stack: stack,
-      heap: heap,
+      stack: stackHeap[0],
+      heap: stackHeap[1],
     } as BackendTraceElem;
   }
 
@@ -84,7 +73,7 @@ export class BackendSession {
    * @param variable variable Simple Variable thath gets mapped to a Value
    * @returns Value
    */
-  private static mapVariableToValue(variable: Variable): Value {
+  private static mapVariableToValue(id: Address, variable: Variable): Value {
     switch (variable.type) {
       case 'int':
         return {
@@ -109,7 +98,7 @@ export class BackendSession {
       default:
         return {
           type: 'ref',
-          value: variable.variablesReference,
+          value: id,
         };
     }
   }
@@ -120,37 +109,72 @@ export class BackendSession {
    * @param variable Simple Variable that gets mapped to a HeapValue
    * @returns HeapValue a object that resides in the heap
    */
-  // TODO: Rework parsing of values in this function!
-  // FIXES: Array with strings or array with ints and strings
-  private static mapVariableToHeapValue(variable: Variable): HeapValue {
-    // Replacing single quotes with double quotes because of json format
-    const v = this.parseToValidJson(variable);
+  private static mapVariableToHeapValue(date: Date, variable: Variable): HeapValue {
+    const temp = JSON.parse(this.parseToValidJson(variable.value)) as Array<Variable>;
     switch (variable.type) {
       case 'list':
+        const list = temp.map((t) => {
+          return {
+            type: typeof t === 'object' ? 'ref' : typeof t,
+            value: typeof t === 'object' ? Md5.hashStr(t.value + date.toISOString()) : t,
+          };
+        }) as Value[];
         return {
           type: 'list',
-          value: JSON.parse(v),
+          value: list,
         };
       case 'tuple':
+        const tuple = temp.map((t) => {
+          return {
+            type: t.variablesReference > 0 ? 'ref' : t.type,
+            value: t.variablesReference > 0 ? Md5.hashStr(t.value + date.toISOString()) : t.value,
+          };
+        }) as Value[];
         return {
           type: 'tuple',
-          value: JSON.parse(v),
+          value: tuple,
         };
       case 'dict':
+        const dict = temp.reduce((acc, cv) => {
+          acc.set(cv.name, {
+            type: this.isValidType(cv.type),
+            value:
+              this.isValidType(cv.type) === 'ref'
+                ? Md5.hashStr(cv.value + date.toISOString())
+                : JSON.parse(this.parseToValidJson(cv.value)),
+          });
+          return acc;
+        }, new Map<any, Value>());
         return {
           type: 'dict',
-          value: JSON.parse(v),
+          value: dict,
         };
       default:
         return {
           type: 'object',
-          value: JSON.parse(v),
+          value: JSON.parse(''),
         };
     }
   }
 
-  private static parseToValidJson(variable: Variable): string {
-    return variable.value.replace(/'|(\(|\))|[0-9]+|(True|False)/g, (substring, args) => {
+  private static isValidType(type: string): 'int' | 'float' | 'str' | 'bool' | 'ref' {
+    switch (type) {
+      case 'int':
+        return type;
+      case 'float':
+        return type;
+      case 'str':
+        return type;
+      case 'bool':
+        return type;
+      default:
+        return 'ref';
+    }
+  }
+
+  // TODO: If the variable is a string only the parenthese need to be swapped, else the other chars are replaced inside of the string
+  private static parseToValidJson(variable: string): string {
+    return variable.replace(/'|(\(|\))|[0-9]+|(True|False)/g, (substring, args) => {
       let result = '';
       switch (substring) {
         case "'":
@@ -175,20 +199,38 @@ export class BackendSession {
     });
   }
 
-  /**
-   * Creates a Globals Element that hold all objects in the global stack frame at current stopped statement of the debugger.
-   *
-   * @param globalVars An Array of simple Variable types
-   * @returns A Map with the name and value of a object in the global stack frame
-   */
-  private static mapVariablesToGlobals(globalVars: Array<Variable>): Map<string, Value> {
-    return new Map(
-      globalVars
-        .filter((v) => v.name !== 'special variables' && v.name !== 'function variables')
-        .map((v) => {
-          return [v.name, this.mapVariableToValue(v)];
-        })
-    );
+  private static async createStackAndHeap(
+    session: vscode.DebugSession,
+    stackFrames: Array<StackFrame>
+  ): Promise<[Array<StackElem>, Map<Address, HeapValue>]> {
+    let stack = Array<StackElem>();
+    let heap = new Map<Address, HeapValue>();
+
+    for (const frame of stackFrames) {
+      const date = new Date();
+      const scopes = await this.scopesRequest(session, frame.id);
+      const variables = (await this.variablesRequest(session, scopes[0].variablesReference)).filter(
+        (v) => v.type.length > 0
+      ); // Filter out the 'special variables' and 'function variables'
+      stack.push({
+        frameName: frame.name,
+        frameId: frame.id,
+        locals: new Map<string, Value>(
+          variables.map((v) => {
+            const id = Md5.hashStr(v.value + date.toISOString()); // new ID
+            return [v.name, this.mapVariableToValue(id, v)];
+          })
+        ),
+      });
+
+      heap = variables
+        .filter((v) => v.variablesReference > 0)
+        .reduce((acc, cv) => {
+          const id = Md5.hashStr(cv.value + date.toISOString()); // new ID
+          return acc.set(id, this.mapVariableToHeapValue(date, cv));
+        }, new Map<Address, HeapValue>());
+    }
+    return [stack, heap];
   }
 
   /**
@@ -198,29 +240,30 @@ export class BackendSession {
    * @param stackFrames All current Stack Frames available to retrieve all function calls
    * @returns An Array with all currently called functions
    */
-  private static async createStackElements(
-    session: vscode.DebugSession,
-    stackFrames: Array<StackFrame>
-  ): Promise<Array<StackElem>> {
-    return await Promise.all(
-      stackFrames.map(
-        async (sf) =>
-          ({
-            frameName: sf.name,
-            frameId: sf.id,
-            locals: new Map(
-              (
-                await this.variablesRequest(session, (await this.scopesRequest(session, sf.id))[0].variablesReference)
-              )
-                .filter((v) => v.name !== 'special variables' && v.name !== 'function variables')
-                .map((v) => {
-                  return [v.name, this.mapVariableToValue(v)];
-                })
-            ),
-          } as StackElem)
-      )
-    );
-  }
+  // private static async createStackElements(
+  //   session: vscode.DebugSession,
+  //   stackFrames: Array<StackFrame>,
+  //   date: Date
+  // ): Promise<Array<StackElem>> {
+  //   return await Promise.all(
+  //     stackFrames.map(
+  //       async (sf) =>
+  //         ({
+  //           frameName: sf.name,
+  //           frameId: sf.id,
+  //           locals: new Map(
+  //             (
+  //               await this.variablesRequest(session, (await this.scopesRequest(session, sf.id))[0].variablesReference)
+  //             )
+  //               .filter((v) => v.name !== 'special variables' && v.name !== 'function variables')
+  //               .map((v) => {
+  //                 return [v.name, this.mapVariableToValue(v)];
+  //               })
+  //           ),
+  //         } as StackElem)
+  //     )
+  //   );
+  // }
 
   /**
    * Creates a Heap Element (Map<Address, HeapValue>), that holds all objects at the current stopped statement of the debugger.
@@ -229,24 +272,41 @@ export class BackendSession {
    * @param stackFrames All current Stack Frames available to retrieve all objects of all frames
    * @return A Map<Address, HeapValue> with Address that the HeapValue can be retrieved from the globals
    */
-  private static async createHeapElements(
-    session: vscode.DebugSession,
-    stackFrames: Array<StackFrame>
-  ): Promise<Map<Address, HeapValue>> {
-    let heap = new Map();
+  // private static async createHeapElements(
+  //   session: vscode.DebugSession,
+  //   stackFrames: Array<StackFrame>
+  // ): Promise<Map<Address, HeapValue>> {
+  //   let heap = new Map<Address, HeapValue>();
+  //   let oldHeapValues = new Map<Address, HeapValue>();
 
-    for (const sf of stackFrames) {
-      const scope = await this.scopesRequest(session, sf.id);
-      const vars = (await this.variablesRequest(session, scope[0].variablesReference)).filter(
-        (v) => v.variablesReference > 0 && v.type.length > 0
-      );
-      vars.forEach((v) => {
-        heap = heap.set(v.variablesReference, this.mapVariableToHeapValue(v));
-      });
-    }
+  //   for (const frame of stackFrames) {
+  //     const scope = await this.scopesRequest(session, frame.id);
+  //     heap = await (
+  //       await this.variablesRequest(session, scope[0].variablesReference)
+  //     )
+  //       .filter((variable) => {
+  //         let temp =
+  //           variable.variablesReference > 0 &&
+  //           variable.type.length > 0 &&
+  //           !this.trace[this.trace.length - 1].heap.has(variable.variablesReference);
 
-    return heap;
-  }
+  //         if (!temp && variable.variablesReference > 0 && variable.type.length > 0) {
+  //           // Value didn't change since last time so we need to save it, but dont make a request for it
+  //           const heapValue = this.trace[this.trace.length - 1].heap.get(variable.variablesReference)!;
+  //           if (stringify(heapValue.value) === variable.value) {
+  //             oldHeapValues.set(variable.variablesReference, heapValue);
+  //           } else {
+  //             temp = true;
+  //           }
+  //         }
+  //         return temp;
+  //       })
+  //       .reduce(async (acc, cv) => {
+  //         return (await acc).set(cv.variablesReference, await this.mapVariableToHeapValue(session, cv));
+  //       }, Promise.resolve(new Map<Address, HeapValue>()));
+  //   }
+  //   return new Map([...Array.from(heap.entries()), ...Array.from(oldHeapValues.entries())]);
+  // }
 
   public static async nextRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('stepIn', {
@@ -264,6 +324,7 @@ export class BackendSession {
     return (
       await session.customRequest('variables', {
         variablesReference: id,
+        filter: 'named',
       })
     ).variables as Array<Variable>;
   }

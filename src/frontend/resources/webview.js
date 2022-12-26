@@ -53,14 +53,25 @@ function updateRefArrows(traceElem) {
 }
 
 function getCurrentTags(traceElem) {
-  const tags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
-  if (tags) {
-    return tags.map(t => {
+  const normalTags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
+  const heapTags = traceElem[2].match(/(?<=startPointer).[0-9]+/g);
+  if (normalTags) {
+    let s = [];
+    const t = normalTags.map(t => {
       return {
         elem1: document.getElementById('heapStartPointer' + t),
         elem2: document.getElementById('heapEndPointer' + t),
       };
     });
+    if (heapTags) {
+      s = heapTags.map(t => {
+        return {
+          elem1: document.getElementById('startPointer' + t),
+          elem2: document.getElementById('heapEndPointer' + t),
+        };
+      });
+    }
+    return [...s, ...t];
   } else {
     return [];
   }
