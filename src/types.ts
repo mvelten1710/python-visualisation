@@ -14,7 +14,7 @@ type BackendTraceElem = {
 
 type Primitive = number | string | boolean;
 
-type Address = string;
+type Address = number;
 
 type Value =
   | { type: 'int'; value: number }
@@ -32,6 +32,7 @@ type StackElem = {
 type HeapValue =
   | { type: 'list'; value: Array<Value> }
   | { type: 'tuple'; value: Array<Value> }
+  | { type: 'set'; value: Array<Value> }
   | { type: 'dict'; value: Map<any, Value> }
   | { type: 'object'; value: ObjectValue };
 

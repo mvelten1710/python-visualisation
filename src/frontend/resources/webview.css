@@ -10,7 +10,7 @@ body {
 }
 
 .floating-right {
-  float: left;
+  float: right;
   width: 65%;
   padding: 10px;
   height: 450px;

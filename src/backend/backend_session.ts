@@ -73,7 +73,7 @@ export class BackendSession {
    * @param variable variable Simple Variable thath gets mapped to a Value
    * @returns Value
    */
-  private static mapVariableToValue(id: Address, variable: Variable): Value {
+  private static mapVariableToValue(variable: Variable): Value {
     switch (variable.type) {
       case 'int':
         return {
@@ -98,7 +98,7 @@ export class BackendSession {
       default:
         return {
           type: 'ref',
-          value: id,
+          value: variable.variablesReference,
         };
     }
   }
@@ -109,41 +109,25 @@ export class BackendSession {
    * @param variable Simple Variable that gets mapped to a HeapValue
    * @returns HeapValue a object that resides in the heap
    */
-  private static mapVariableToHeapValue(date: Date, variable: Variable): HeapValue {
-    const temp = JSON.parse(this.parseToValidJson(variable.value)) as Array<Variable>;
+  private static async mapVariableToHeapValue(session: vscode.DebugSession, variable: Variable): Promise<HeapValue> {
+    const variableContent = await this.variablesRequest(session, variable.variablesReference);
     switch (variable.type) {
       case 'list':
-        const list = temp.map((t) => {
-          return {
-            type: typeof t === 'object' ? 'ref' : typeof t,
-            value: typeof t === 'object' ? Md5.hashStr(t.value + date.toISOString()) : t,
-          };
-        }) as Value[];
-        return {
-          type: 'list',
-          value: list,
-        };
       case 'tuple':
-        const tuple = temp.map((t) => {
+      case 'set':
+        const list = variableContent.map((t) => {
           return {
             type: t.variablesReference > 0 ? 'ref' : t.type,
-            value: t.variablesReference > 0 ? Md5.hashStr(t.value + date.toISOString()) : t.value,
+            value: t.variablesReference > 0 ? t.variablesReference : t.value,
           };
         }) as Value[];
         return {
-          type: 'tuple',
-          value: tuple,
+          type: variable.type,
+          value: list,
         };
       case 'dict':
-        const dict = temp.reduce((acc, cv) => {
-          acc.set(cv.name, {
-            type: this.isValidType(cv.type),
-            value:
-              this.isValidType(cv.type) === 'ref'
-                ? Md5.hashStr(cv.value + date.toISOString())
-                : JSON.parse(this.parseToValidJson(cv.value)),
-          });
-          return acc;
+        const dict = variableContent.reduce((acc, cv) => {
+          return acc.set(cv.name, this.mapVariableToValue(cv));
         }, new Map<any, Value>());
         return {
           type: 'dict',
@@ -157,48 +141,6 @@ export class BackendSession {
     }
   }
 
-  private static isValidType(type: string): 'int' | 'float' | 'str' | 'bool' | 'ref' {
-    switch (type) {
-      case 'int':
-        return type;
-      case 'float':
-        return type;
-      case 'str':
-        return type;
-      case 'bool':
-        return type;
-      default:
-        return 'ref';
-    }
-  }
-
-  // TODO: If the variable is a string only the parenthese need to be swapped, else the other chars are replaced inside of the string
-  private static parseToValidJson(variable: string): string {
-    return variable.replace(/'|(\(|\))|[0-9]+|(True|False)/g, (substring, args) => {
-      let result = '';
-      switch (substring) {
-        case "'":
-          result = '"';
-          break;
-        case 'True':
-          result = JSON.stringify(substring);
-          break;
-        case '(':
-          result = '[';
-          break;
-        case ')':
-          result = ']';
-          break;
-        default:
-          if (!isNaN(Number(substring))) {
-            result = JSON.stringify(substring);
-          }
-          break;
-      }
-      return result;
-    });
-  }
-
   private static async createStackAndHeap(
     session: vscode.DebugSession,
     stackFrames: Array<StackFrame>
@@ -206,29 +148,26 @@ export class BackendSession {
     let stack = Array<StackElem>();
     let heap = new Map<Address, HeapValue>();
 
-    for (const frame of stackFrames) {
-      const date = new Date();
-      const scopes = await this.scopesRequest(session, frame.id);
+    for (let i = 0; i < stackFrames.length; i++) {
+      const scopes = await this.scopesRequest(session, stackFrames[i].id);
       const variables = (await this.variablesRequest(session, scopes[0].variablesReference)).filter(
         (v) => v.type.length > 0
       ); // Filter out the 'special variables' and 'function variables'
       stack.push({
-        frameName: frame.name,
-        frameId: frame.id,
+        frameName: stackFrames[i].name,
+        frameId: stackFrames[i].id,
         locals: new Map<string, Value>(
-          variables.map((v) => {
-            const id = Md5.hashStr(v.value + date.toISOString()); // new ID
-            return [v.name, this.mapVariableToValue(id, v)];
+          variables.map((variable) => {
+            return [variable.name, this.mapVariableToValue(variable)];
           })
         ),
       });
 
-      heap = variables
+      heap = await variables
         .filter((v) => v.variablesReference > 0)
-        .reduce((acc, cv) => {
-          const id = Md5.hashStr(cv.value + date.toISOString()); // new ID
-          return acc.set(id, this.mapVariableToHeapValue(date, cv));
-        }, new Map<Address, HeapValue>());
+        .reduce(async (acc, cv) => {
+          return (await acc).set(cv.variablesReference, await this.mapVariableToHeapValue(session, cv));
+        }, Promise.resolve(heap));
     }
     return [stack, heap];
   }
@@ -322,11 +261,16 @@ export class BackendSession {
 
   private static async variablesRequest(session: vscode.DebugSession, id: number): Promise<Array<Variable>> {
     return (
-      await session.customRequest('variables', {
-        variablesReference: id,
-        filter: 'named',
-      })
-    ).variables as Array<Variable>;
+      (
+        await session.customRequest('variables', {
+          variablesReference: id,
+          filter: 'named',
+        })
+      ).variables as Array<Variable>
+    ).filter(
+      (variable) =>
+        variable.name !== 'special variables' && variable.name !== 'function variables' && variable.name !== 'len()'
+    );
   }
 
   private static async scopesRequest(session: vscode.DebugSession, id: number): Promise<Array<Scope>> {

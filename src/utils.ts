@@ -115,7 +115,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   // Filter "special variables" & "function variables" out
   // Convert variables to html elements so that they can be used right away
   const frameItems = `
-    <div class="column scrollable" id="frameItems">
+    <div class="column" id="frameItems">
       ${traceElem.stack.map((stackElem, index) => frameItem(index, stackElem)).join('')}
     </div>
   `;
@@ -123,7 +123,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
   const keys = Array.from(Object.keys(traceElem.heap));
   const values = Array.from(Object.values(traceElem.heap));
   const objectItems = `
-    <div class="column scrollable" id="objectItems">
+    <div class="column" id="objectItems">
       ${keys.map((name, index) => objectItem(name, values[index])).join('')}
     <div>
   `;
@@ -153,6 +153,7 @@ function heapValue(name: string, heapValue: HeapValue): string {
       break;
     case 'object':
       break;
+    case 'set':
     case 'list':
     case 'tuple':
       result = `
@@ -171,9 +172,8 @@ function dictValue(key: any, value: Value): string {
       <div class="box">
         ${key}
       </div>
-      <div class="box" 
-      ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
-        ${value}
+      <div class="box" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+        ${value.value}
       </div>
     </div>
   `;

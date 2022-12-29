@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import path = require('path');
 import { backendToFrontend, createDecorationOptions, getOpenEditors } from '../utils';
 import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
-import stringify from 'stringify-json';
 
 export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
@@ -81,30 +80,39 @@ export class VisualizationPanel {
           
       </head>
       <body onload="onLoad()">
-        <div class="column">
-          <div class="row" id="viz">
+        <div class="column" id="viz">
+          <div class="row">
+            <div class="column title">
+              Frames
+              <div class="divider"></div>
+            </div>
+            <div class="row title">
+              Objects
+              <div class="divider"></div>
+            </div>
+          </div>
+          <div class="row">
             <div class="column floating-left" id="frames">
-              <div class="row title">Frames</div>
-              <div class="divider"></div>
+            
+            
             </div>
-    
             <div class="column floating-right" id="objects">
-              <div class="row title">Objects</div>
-              <div class="divider"></div>
+          
+          
             </div>
           </div>
-          <div class="row margin-vertical">
-            <div class="current-line-color"></div>
-            <b class="margin-horizontal">Just executed line</b>
-          </div>
-          <div class="row margin-vertical">
-            <div class="next-line-color"></div>
-            <b class="margin-horizontal">Next line to be executed</b>
-          </div>
-          <div class="row margin-vertical">
-            <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
-            <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
-          </div>
+        </div>
+        <div class="row margin-vertical">
+          <div class="current-line-color"></div>
+          <b class="margin-horizontal">Just executed line</b>
+        </div>
+        <div class="row margin-vertical">
+          <div class="next-line-color"></div>
+          <b class="margin-horizontal">Next line to be executed</b>
+        </div>
+        <div class="row margin-vertical">
+          <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
+          <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
         </div>
       </body>
       </html>

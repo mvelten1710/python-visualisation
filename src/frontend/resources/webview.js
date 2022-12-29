@@ -20,16 +20,27 @@ window.addEventListener('message', event => {
 
 function updateVisualization(traceElem) {
   const data = `
-    <div class="column floating-left" id="frames">
-      <div class="row title">Frames</div>
-      <div class="divider"></div>
-      ${traceElem[1]}
+    <div class="row">
+      <div class="column">
+        <div class="row title">
+          Frames
+          <div class="divider"></div>
+        </div>
+      </div>
+      <div>
+        <div class="row title">
+          Objects
+          <div class="divider"></div>
+        </div>
+      </div>
     </div>
-
-    <div class="column floating-right" id="objects">
-      <div class="row title">Objects</div>
-      <div class="divider"></div>
+    <div class="row">
+      <div class="column floating-left" id="frames">
+      ${traceElem[1]}
+      </div>
+      <div class="column floating-right" id="objects">
       ${traceElem[2]}
+      </div>
     </div>
   `;
   document.getElementById('viz').innerHTML = data;
@@ -53,8 +64,8 @@ function updateRefArrows(traceElem) {
 }
 
 function getCurrentTags(traceElem) {
-  const normalTags = traceElem[2].match(/(?<=heapEndPointer).[0-9]+/g);
-  const heapTags = traceElem[2].match(/(?<=startPointer).[0-9]+/g);
+  const normalTags = traceElem[1].match(/(?<=heapStartPointer)[0-9]+/g);
+  const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
   if (normalTags) {
     let s = [];
     const t = normalTags.map(t => {
