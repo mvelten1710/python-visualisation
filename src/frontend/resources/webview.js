@@ -13,6 +13,7 @@ window.addEventListener('message', event => {
       break;
     case 'updateContent':
       updateVisualization(message.traceElem);
+      updateIntend(message.traceElem);
       updateRefArrows(message.traceElem);
       break;
   }
@@ -46,18 +47,30 @@ function updateVisualization(traceElem) {
   document.getElementById('viz').innerHTML = data;
 }
 
+function updateIntend(traceElem) {
+  const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
+  if (heapTags) {
+    heapTags.forEach(tag => {
+      document.getElementById('objectItem' + tag).classList.add('object-intendation');
+    });
+  }
+}
+
 function updateRefArrows(traceElem) {
   const tags = getCurrentTags(traceElem);
   refTags.forEach(tag => tag.remove());
   if (tags) {
     refTags = tags.map(tag => {
       return new LeaderLine(tag.elem1, tag.elem2, { 
-        size: 2, 
+        size: 2,
+        path: 'magnet',
         startSocket: 'right', 
         endSocket: 'left', 
-        startPlug: 'square', 
+        startPlug: 'square',
+        startSocketGravity: [50, -10],
+        endSocketGravity: [-5, -5],
         endPlug: 'arrow1',
-        color: getRandomColor()
+        color: getColor(tag)
       });
     });
   }
@@ -70,6 +83,7 @@ function getCurrentTags(traceElem) {
     let s = [];
     const t = normalTags.map(t => {
       return {
+        tag: t,
         elem1: document.getElementById('heapStartPointer' + t),
         elem2: document.getElementById('heapEndPointer' + t),
       };
@@ -77,6 +91,7 @@ function getCurrentTags(traceElem) {
     if (heapTags) {
       s = heapTags.map(t => {
         return {
+          tag: t,
           elem1: document.getElementById('startPointer' + t),
           elem2: document.getElementById('heapEndPointer' + t),
         };
@@ -88,8 +103,8 @@ function getCurrentTags(traceElem) {
   }
 }
 
-function getRandomColor() {
-  return `rgba(${Math.random()* 255}, ${Math.random()* 255}, ${Math.random()* 255}, 1)`;
+function getColor(tag) {
+  return `rgba(${(tag.tag * 123)%255}, ${(tag.tag * 223)%255}, ${(tag.tag * 323)%255}, 1)`;
 }
 
 function onLoad() {

@@ -79,8 +79,8 @@ export class VisualizationPanel {
           <title>Code Visualization</title>
           
       </head>
-      <body onload="onLoad()">
-        <div class="column" id="viz">
+      <body class="scrollable" onload="onLoad()">
+        <div class="column scrollable" id="viz">
           <div class="row">
             <div class="column title">
               Frames

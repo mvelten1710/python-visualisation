@@ -85,6 +85,7 @@ export class BackendSession {
           type: 'float',
           value: parseFloat(variable.value),
         };
+      case 'NoneType':
       case 'str':
         return {
           type: 'str',

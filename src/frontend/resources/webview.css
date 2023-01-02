@@ -13,14 +13,16 @@ body {
   float: right;
   width: 65%;
   padding: 10px;
-  height: 450px;
+  min-height: 450px;
+  max-height: 90%;
 }
 
 .floating-left {
   float: left;
   width: 35%;
   padding: 10px;
-  height: 450px;
+  max-height: 90%;
+  min-height: 450px;
   margin-right: 100px;
 }
 
@@ -64,14 +66,24 @@ body {
 }
 
 .name-border {
+  width: 50%;
   font-size: 16px;
   margin-right: 5px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .value-border {
+  width: 50%;
+  padding-left: 3px;
+  padding-right: 3px;
   font-size: 16px;
-  border-bottom: 1px solid grey;
-  border-left: 1px solid grey;
+  border-bottom: 1.5px solid grey;
+  border-left: 1.5px solid grey;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .dataRow {
@@ -114,7 +126,33 @@ body {
 }
 
 .box {
-  padding: 10px;
-  border: 1px solid wheat;
-  background-color: grey;
+  color: white;
+  border: 1px solid rgba(109, 89, 89, 1.0);
+  background-color: rgba(69, 69, 69, 0.5);
+}
+
+.box-content-top {
+  margin: 2px 2px 2px 5px;
+  color: grey;
+}
+
+.box-content-bottom {
+  margin: 10px 15px 10px 15px;
+}
+
+.box-content-dict {
+  padding: 10px 15px 10px 15px;
+  max-width: 100px;
+  min-width: 100px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.object-intendation {
+  margin-left: 65px;
+}
+
+.object-item {
+  margin-bottom: 15px;
 }

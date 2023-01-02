@@ -132,7 +132,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
 
 function objectItem(name: string, value: HeapValue): string {
   return `
-    <div class="column" id="objectItem?">
+    <div class="column object-item" id="objectItem${name}">
       <div>${value.type}</div>
       <div>${heapValue(name, value)}</div>
     </div>
@@ -169,11 +169,11 @@ function heapValue(name: string, heapValue: HeapValue): string {
 function dictValue(key: any, value: Value): string {
   return `
     <div class="row">
-      <div class="box">
+      <div class="box box-content-dict">
         ${key}
       </div>
-      <div class="box" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
-        ${value.value}
+      <div class="box box-content-dict" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+        ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
   `;
@@ -182,11 +182,11 @@ function dictValue(key: any, value: Value): string {
 function listValue(value: Value, index: number): string {
   return `
     <div class="box list column">
-      <div class="row">
+      <div class="row box-content-top">
         ${index}
       </div>
-      <div class="row" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
-        ${value.value}
+      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+        ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
   `;
@@ -210,12 +210,12 @@ function frameItem(index: number, stackElem: StackElem): string {
 
 function frameSubItem(name: string, value: Value): string {
   return `
-    <div class="row frame-item" id="subItem?">
+    <div class="row frame-item" id="subItem${name}">
       <div class="name-border">
         ${name}
       </div>
       <div class="value-border" ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : ''}>
-        ${value.value}
+        ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
   `;
