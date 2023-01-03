@@ -22,24 +22,24 @@ window.addEventListener('message', event => {
 function updateVisualization(traceElem) {
   const data = `
     <div class="row">
-      <div class="column">
+      <div class="column floating-left">
         <div class="row title">
           Frames
-          <div class="divider"></div>
         </div>
+        <div class="divider"></div>
       </div>
-      <div>
+      <div class="column floating-right">
         <div class="row title">
           Objects
-          <div class="divider"></div>
         </div>
+        <div class="divider"></div>
       </div>
     </div>
     <div class="row">
-      <div class="column floating-left" id="frames">
+      <div class="column floating-left floating-left-content" id="frames">
       ${traceElem[1]}
       </div>
-      <div class="column floating-right" id="objects">
+      <div class="column floating-right floating-right-content" id="objects">
       ${traceElem[2]}
       </div>
     </div>

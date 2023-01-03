@@ -12,6 +12,10 @@ body {
 .floating-right {
   float: right;
   width: 65%;
+}
+
+.floating-right-content {
+  width: 65%;
   padding: 10px;
   min-height: 450px;
   max-height: 90%;
@@ -19,6 +23,10 @@ body {
 
 .floating-left {
   float: left;
+  width: 35%;
+}
+
+.floating-left-content {
   width: 35%;
   padding: 10px;
   max-height: 90%;
