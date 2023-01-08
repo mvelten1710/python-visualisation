@@ -154,6 +154,12 @@ function heapValue(name: string, heapValue: HeapValue): string {
     case 'object':
       break;
     case 'set':
+      result = `
+        <div class="row" id="heapEndPointer${name}">
+          ${heapValue.value.map((v, i) => setValue(v)).join('')}
+        </div>
+      `;
+      break;
     case 'list':
     case 'tuple':
       result = `
@@ -192,6 +198,16 @@ function listValue(value: Value, index: number): string {
   `;
 }
 
+function setValue(value: Value): string {
+  return `
+    <div class="box box-set column">
+      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+        ${value.type === 'ref' ? '' : value.value}
+      </div>
+    </div>
+  `;
+}
+
 // ?: stands for the number of the item
 function frameItem(index: number, stackElem: StackElem): string {
   const keys = Array.from(Object.keys(stackElem.locals));
@@ -221,6 +237,14 @@ function frameSubItem(name: string, value: Value): string {
   `;
 }
 
+export async function startFrontend(testing: boolean, context: vscode.ExtensionContext, trace: string | undefined) {
+  if (!testing && trace) {
+    await initFrontend(context, JSON.parse(trace));
+  } else {
+    await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
+  }
+}
+
 /**
  * Register a debug adapter tracker factory for the given debug type.
  * It listens for stopped events and creates a BackendTraceElem in the Backend
@@ -228,7 +252,7 @@ function frameSubItem(name: string, value: Value): string {
  *
  * @returns A Disposable that unregisters this factory when being disposed.
  */
-export function createDebugAdapterTracker(context: vscode.ExtensionContext): vscode.Disposable {
+export function createDebugAdapterTracker(testing: boolean, context: vscode.ExtensionContext): vscode.Disposable {
   return vscode.debug.registerDebugAdapterTrackerFactory('python', {
     createDebugAdapterTracker(session: vscode.DebugSession) {
       return {
@@ -271,11 +295,7 @@ export function createDebugAdapterTracker(context: vscode.ExtensionContext): vsc
               context,
               Variables.TRACE_KEY + BackendSession.originalFile.fsPath
             );
-            if (trace) {
-              await initFrontend(context, JSON.parse(trace));
-            } else {
-              await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
-            }
+            await startFrontend(testing, context, trace);
           }
           BackendSession.tracker.dispose();
         },

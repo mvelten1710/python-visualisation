@@ -157,6 +157,11 @@ body {
   white-space: nowrap;
 }
 
+.box-set {
+  flex-wrap: wrap;
+  width: 150px;
+}
+
 .object-intendation {
   margin-left: 65px;
 }

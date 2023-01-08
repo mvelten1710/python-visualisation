@@ -29,6 +29,15 @@ type StackElem = {
   locals: Map<string, Value>;
 };
 
+type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'object';
+type HeapV = Array<Value> | Map<any, Value> | ObjectValue;
+
+type RawHeapValue = {
+  ref: Address;
+  type: HeapType;
+  value: HeapV;
+};
+
 type HeapValue =
   | { type: 'list'; value: Array<Value> }
   | { type: 'tuple'; value: Array<Value> }
