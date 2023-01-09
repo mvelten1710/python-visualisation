@@ -104,7 +104,8 @@ function getCurrentTags(traceElem) {
 }
 
 function getColor(tag) {
-  return `rgba(${(tag.tag * 123)%255}, ${(tag.tag * 223)%255}, ${(tag.tag * 323)%255}, 1)`;
+  let hue = ((0.618033988749895 + (tag.tag / 10) ) % 1) * 100;
+  return `hsl(${hue}, 60%, 45%)`;
 }
 
 function onLoad() {

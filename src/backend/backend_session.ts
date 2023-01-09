@@ -78,9 +78,7 @@ export class BackendSession {
 
     for (let i = 0; i < stackFrames.length; i++) {
       const scopes = await this.scopesRequest(session, stackFrames[i].id);
-      const variables = (await this.variablesRequest(session, scopes[0].variablesReference)).filter(
-        (v) => v.type.length > 0
-      ); // Filter out the 'special variables' and 'function variables'
+      const variables = await this.variablesRequest(session, scopes[0].variablesReference);
       stack.push({
         frameName: stackFrames[i].name,
         frameId: stackFrames[i].id,
@@ -107,10 +105,7 @@ export class BackendSession {
         // Check if every variableRef is in the heap if not take the variableRef's value and put it into the heap
         heapVars.forEach((value, key) => {
           if (!heap.has(key)) {
-            const temp = this.trace[this.trace.length - 1].heap.get(key);
-            if (temp) {
-              heap.set(key, temp);
-            }
+            heap.set(key, value);
           }
         });
       }
@@ -164,13 +159,32 @@ export class BackendSession {
   }
 
   private static stringToObject(type: HeapType, value: string): HeapV {
-    return JSON.parse(this.toValidJson(type, value));
+    const temp = JSON.parse(this.toValidJson(type, value));
+    switch (type) {
+      case 'list':
+      case 'tuple':
+      case 'set':
+        return (temp as Array<string>).map((val) => {
+          return { type: 'str', value: val };
+        });
+      case 'dict':
+        const keys = Array.from(Object.keys(temp.value));
+        const values = Array.from(Object.values(temp.value)) as Array<any>;
+        return keys.reduce((acc, cv, index) => {
+          return acc.set(cv, { type: 'str', value: values[index] });
+        }, new Map<any, Value>());
+      case 'object':
+        return { typeName: '', properties: new Map<string, Value>() };
+    }
   }
 
   private static toValidJson(type: HeapType, value: string): string {
-    return value.replace(/'|(\(|\))|[0-9]+|(True|False)/g, (substring, _) => {
+    return value.replace(/None|'|(\(|\))|(\{|\})|[0-9]+|(True|False)/g, (substring, _) => {
       let result = '';
       switch (substring) {
+        case 'None':
+          result = '"None"';
+          break;
         case "'":
           result = '"';
           break;
