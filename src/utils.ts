@@ -218,19 +218,19 @@ function frameItem(index: number, stackElem: StackElem): string {
         ${stackElem.frameName === '<module>' ? 'Global' : stackElem.frameName}
       </div>
       <div class="column ${index === 0 ? 'current-frame' : 'frame'}" id="frameItemSubItems">
-        ${keys.map((name, index) => frameSubItem(name, values[index])).join('')}
+        ${keys.map((name, index) => frameSubItem(stackElem.frameName, name, values[index])).join('')}
       </div>
     </div>
   `;
 }
 
-function frameSubItem(name: string, value: Value): string {
+function frameSubItem(frameName: string, name: string, value: Value): string {
   return `
     <div class="row frame-item" id="subItem${name}">
       <div class="name-border">
         ${name}
       </div>
-      <div class="value-border" ${value.type === 'ref' ? `id="heapStartPointer${value.value}"` : ''}>
+      <div class="value-border" ${value.type === 'ref' ? `id="${frameName}${name}Pointer${value.value}"` : ''}>
         ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>

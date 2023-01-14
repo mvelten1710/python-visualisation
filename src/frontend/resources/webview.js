@@ -77,15 +77,16 @@ function updateRefArrows(traceElem) {
 }
 
 function getCurrentTags(traceElem) {
-  const normalTags = traceElem[1].match(/(?<=heapStartPointer)[0-9]+/g);
+  const normalTags = traceElem[1].match(/(?<=id=")(.+)Pointer[0-9]+/g);
   const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
   if (normalTags) {
     let s = [];
-    const t = normalTags.map(t => {
+    const t = normalTags.map(normalTag => {
+      const id = normalTag.match(/(?<=.+)[0-9]+/g);
       return {
-        tag: t,
-        elem1: document.getElementById('heapStartPointer' + t),
-        elem2: document.getElementById('heapEndPointer' + t),
+        tag: id,
+        elem1: document.getElementById(normalTag),
+        elem2: document.getElementById('heapEndPointer' + id),
       };
     });
     if (heapTags) {
