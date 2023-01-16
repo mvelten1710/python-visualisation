@@ -31,7 +31,7 @@ export class BackendSession {
     this.context = context;
     this.trace = [];
     this.newHash = hash;
-    this.tracker = createDebugAdapterTracker(testing, context);
+    this.tracker = createDebugAdapterTracker(testing, `${this.newHash}#${this.originalFile.fsPath}`, context);
     const debugSuccess = await vscode.debug.startDebugging(
       undefined,
       this.getDebugConfiguration(this.tempFile)

@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
 import path = require('path');
-import { backendToFrontend, createDecorationOptions, getOpenEditors } from '../utils';
-import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
+import {
+  backendToFrontend,
+  createDecorationOptions,
+  getActiveEditor,
+  getContextState,
+  getOpenEditors,
+  setContextState,
+  showTextDocument,
+} from '../utils';
+import { Variables, currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
 
 export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
@@ -11,7 +19,7 @@ export class VisualizationPanel {
   private readonly _trace: FrontendTrace;
   private _traceIndex: number;
 
-  constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
+  private constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
     this._trace = trace.map(backendToFrontend);
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
@@ -32,7 +40,6 @@ export class VisualizationPanel {
     this._style = panel.webview.asWebviewUri(stylesFile);
     this._script = panel.webview.asWebviewUri(scriptFile);
     this._lineScript = panel.webview.asWebviewUri(lineFile);
-
     this._panel = panel;
 
     this._panel.onDidChangeViewState(async (e) => {
@@ -42,7 +49,7 @@ export class VisualizationPanel {
     });
 
     this._panel.onDidDispose(
-      () => {
+      async () => {
         this.updateLineHighlight(true);
         this._panel = undefined;
       },
@@ -64,6 +71,14 @@ export class VisualizationPanel {
 
     this.updateLineHighlight();
     this.updateWebviewContent();
+  }
+
+  public static async getVisualizationPanel(
+    id: string,
+    context: vscode.ExtensionContext,
+    trace: BackendTrace
+  ): Promise<VisualizationPanel | undefined> {
+    return new VisualizationPanel(context, trace);
   }
 
   public updateWebviewContent() {

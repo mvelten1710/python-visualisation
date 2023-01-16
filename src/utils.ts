@@ -3,9 +3,9 @@ import util = require('util');
 import path = require('path');
 import { Variables } from './constants';
 import { BackendSession } from './backend/backend_session';
-import { initFrontend } from './frontend/frontend';
 import { Md5 } from 'ts-md5';
 import stringify from 'stringify-json';
+import { VisualizationPanel } from './frontend/visualization_panel';
 
 /**
  *  Gets the uri for the currently opened workspace, if one is opened.
@@ -40,13 +40,16 @@ export async function getFileContent(fileUri: vscode.Uri): Promise<string> {
  *
  * @returns The uri of a temporarily created file or undefined
  */
-export async function createTempFileFromCurrentEditor(fileContent: string): Promise<vscode.Uri | undefined> {
+export async function createTempFileFromCurrentEditor(
+  hash: string,
+  fileContent: string
+): Promise<vscode.Uri | undefined> {
   // Create temp file with the content of the python file and add a 'pass' at the end
   // to let the debugger evaluate the last statement of the file
   // Create a temp file in the workspace and delete it afterwards
   const workspaceUri = getWorkspaceUri();
   if (workspaceUri) {
-    const tempFileUri = vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE);
+    const tempFileUri = vscode.Uri.joinPath(workspaceUri, `${hash}.py`);
     const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
     // Workspace is also opened, file can be written and path to file can be returned
     await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
@@ -84,8 +87,8 @@ export async function showTextDocument(file: vscode.Uri) {
   await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
 }
 
-export async function deleteTempFile(workspaceUri: vscode.Uri) {
-  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, Variables.TEMP_FILE));
+export async function deleteTempFile(workspaceUri: vscode.Uri, hash: string) {
+  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, `${hash}.py`));
 }
 
 /**
@@ -104,11 +107,11 @@ export function generateMD5Hash(content: string): string {
 
 // Read File -> Create Hash -> Save Hash -> Compare saved Hash with Hash from file directly -> If Hash is same use already generated Trace, If not start debugger
 export async function setContextState(context: vscode.ExtensionContext, key: string, value: any): Promise<void> {
-  return await context.globalState.update(key, value);
+  return await context.workspaceState.update(key, value);
 }
 
 export async function getContextState<T>(context: vscode.ExtensionContext, key: string): Promise<T | undefined> {
-  return await context.globalState.get<T>(key);
+  return await context.workspaceState.get<T>(key);
 }
 
 export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceElem {
@@ -237,9 +240,14 @@ function frameSubItem(frameName: string, name: string, value: Value): string {
   `;
 }
 
-export async function startFrontend(testing: boolean, context: vscode.ExtensionContext, trace: string | undefined) {
+export async function startFrontend(
+  testing: boolean,
+  id: string,
+  context: vscode.ExtensionContext,
+  trace: string | undefined
+): Promise<VisualizationPanel | undefined> {
   if (!testing && trace) {
-    await initFrontend(context, JSON.parse(trace));
+    return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
   } else {
     await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
   }
@@ -252,7 +260,11 @@ export async function startFrontend(testing: boolean, context: vscode.ExtensionC
  *
  * @returns A Disposable that unregisters this factory when being disposed.
  */
-export function createDebugAdapterTracker(testing: boolean, context: vscode.ExtensionContext): vscode.Disposable {
+export function createDebugAdapterTracker(
+  testing: boolean,
+  id: string,
+  context: vscode.ExtensionContext
+): vscode.Disposable {
   return vscode.debug.registerDebugAdapterTrackerFactory('python', {
     createDebugAdapterTracker(session: vscode.DebugSession) {
       return {
@@ -287,7 +299,7 @@ export function createDebugAdapterTracker(testing: boolean, context: vscode.Exte
             );
 
             // Delete temp file
-            await deleteTempFile(getWorkspaceUri()!);
+            await deleteTempFile(getWorkspaceUri()!, BackendSession.newHash);
             // Show the original file again
             await showTextDocument(BackendSession.originalFile);
             // Init frontend with the backend trace
@@ -295,11 +307,10 @@ export function createDebugAdapterTracker(testing: boolean, context: vscode.Exte
               context,
               Variables.TRACE_KEY + BackendSession.originalFile.fsPath
             );
-            await startFrontend(testing, context, trace);
+            await startFrontend(testing, id, context, trace);
           }
           BackendSession.tracker.dispose();
         },
-        onError: (error) => console.error(`! ${error?.stack}`),
       };
     },
   });

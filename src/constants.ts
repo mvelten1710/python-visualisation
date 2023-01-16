@@ -8,7 +8,7 @@ export namespace Commands {
 export namespace Variables {
   export const SPECIAL = 'special variables';
   export const FUNCTION = 'function variables';
-  export const TEMP_FILE = 'visualization_temp.py';
+  export const ACTIVE_PANEL_FLAG_KEY = 'python-visualization.panels#';
   export const HASH_KEY = 'python-visualization.hash#';
   export const TRACE_KEY = 'python-visualization.trace#';
 }
