@@ -1,5 +1,6 @@
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
+// TODO: Documentation
 type FrontendTraceElem = [number, string, string];
 // ############################################################################################
 // State Types for the Backend
@@ -29,8 +30,8 @@ type StackElem = {
   locals: Map<string, Value>;
 };
 
-type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'object';
-type HeapV = Array<Value> | Map<any, Value> | ObjectValue;
+type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class';
+type HeapV = Array<Value> | Map<any, Value> | ClassValue;
 
 type RawHeapValue = {
   ref: Address;
@@ -43,10 +44,11 @@ type HeapValue =
   | { type: 'tuple'; value: Array<Value> }
   | { type: 'set'; value: Array<Value> }
   | { type: 'dict'; value: Map<any, Value> }
-  | { type: 'object'; value: ObjectValue };
+  | { type: 'class'; value: ClassValue }
+  | { type: 'instance'; value: string };
 
-type ObjectValue = {
-  typeName: string;
+type ClassValue = {
+  className: string;
   properties: Map<string, Value>;
 };
 // ############################################################################################

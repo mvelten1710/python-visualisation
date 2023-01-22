@@ -41,7 +41,7 @@ export async function getFileContent(fileUri: vscode.Uri): Promise<string> {
  * @returns The uri of a temporarily created file or undefined
  */
 export async function createTempFileFromCurrentEditor(
-  hash: string,
+  file: vscode.Uri,
   fileContent: string
 ): Promise<vscode.Uri | undefined> {
   // Create temp file with the content of the python file and add a 'pass' at the end
@@ -49,7 +49,8 @@ export async function createTempFileFromCurrentEditor(
   // Create a temp file in the workspace and delete it afterwards
   const workspaceUri = getWorkspaceUri();
   if (workspaceUri) {
-    const tempFileUri = vscode.Uri.joinPath(workspaceUri, `${hash}.py`);
+    const fileName = path.basename(file.fsPath).split('.')[0];
+    const tempFileUri = vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`);
     const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
     // Workspace is also opened, file can be written and path to file can be returned
     await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
@@ -87,8 +88,9 @@ export async function showTextDocument(file: vscode.Uri) {
   await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
 }
 
-export async function deleteTempFile(workspaceUri: vscode.Uri, hash: string) {
-  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, `${hash}.py`));
+export async function deleteTempFile(workspaceUri: vscode.Uri, file: vscode.Uri) {
+  const fileName = path.basename(file.fsPath).split('.')[0];
+  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`));
 }
 
 /**
@@ -136,7 +138,7 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
 function objectItem(name: string, value: HeapValue): string {
   return `
     <div class="column object-item" id="objectItem${name}">
-      <div>${value.type}</div>
+      <div>${value.type !== 'class' ? value.type : value.type + ' ' + value.value.className}</div>
       <div>${heapValue(name, value)}</div>
     </div>
   `;
@@ -146,15 +148,22 @@ function heapValue(name: string, heapValue: HeapValue): string {
   let result = '';
   switch (heapValue.type) {
     case 'dict':
-      const keys = Array.from(Object.keys(heapValue.value));
-      const values = Array.from(Object.values(heapValue.value));
+      const dictKeys = Array.from(Object.keys(heapValue.value));
+      const dictValues = Array.from(Object.values(heapValue.value));
       result = `
         <div class="column" id="heapEndPointer${name}">
-          ${keys.map((key, index) => dictValue(key, values[index])).join('')}
+          ${dictKeys.map((key, index) => dictValue(key, dictValues[index])).join('')}
         </div>
       `;
       break;
-    case 'object':
+    case 'class':
+      const objectKeys = Array.from(Object.keys(heapValue.value.properties));
+      const objectValues = Array.from(Object.values(heapValue.value.properties));
+      result = `
+        <div class="column" id="heapEndPointer${name}">
+          ${objectKeys.map((key, index) => dictValue(key, objectValues[index])).join('')}
+        </div>
+      `;
       break;
     case 'set':
       result = `
@@ -168,6 +177,13 @@ function heapValue(name: string, heapValue: HeapValue): string {
       result = `
         <div class="row" id="heapEndPointer${name}">
           ${heapValue.value.map((v, i) => listValue(v, i)).join('')}
+        </div>
+      `;
+      break;
+    case 'instance':
+      result = `
+        <div class="row" id="heapEndPointer${name}">
+          ${heapValue.value} ${heapValue.type}
         </div>
       `;
       break;
@@ -299,7 +315,7 @@ export function createDebugAdapterTracker(
             );
 
             // Delete temp file
-            await deleteTempFile(getWorkspaceUri()!, BackendSession.newHash);
+            await deleteTempFile(getWorkspaceUri()!, BackendSession.originalFile);
             // Show the original file again
             await showTextDocument(BackendSession.originalFile);
             // Init frontend with the backend trace

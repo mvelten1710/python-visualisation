@@ -33,7 +33,7 @@ export async function initExtension(
     if (oldHash !== newHash) {
       // Close currently focused editor
       await vscode.commands.executeCommand(Commands.CLOSE_EDITOR);
-      const tempFileUri = await createTempFileFromContent(newHash, content);
+      const tempFileUri = await createTempFileFromContent(file, content);
       tempFileUri
         ? await generateBackendTrace(testing, context, file, tempFileUri, newHash)
         : vscode.window.showErrorMessage("Error Python-Visualization: Backend Trace couldn't be generated!");

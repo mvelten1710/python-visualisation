@@ -81,6 +81,7 @@ export class VisualizationPanel {
     return new VisualizationPanel(context, trace);
   }
 
+  // TODO: Look if Typescript is possible OR do better documentation in all files
   public updateWebviewContent() {
     this._panel!.webview.html = `
       <!DOCTYPE html>
