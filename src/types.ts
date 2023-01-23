@@ -17,6 +17,15 @@ type Primitive = number | string | boolean;
 
 type Address = number;
 
+type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class';
+type HeapV = Array<Value> | Map<any, Value> | ClassValue;
+
+type RawHeapValue = {
+  ref: Address;
+  type: HeapType;
+  value: HeapV;
+};
+
 type Value =
   | { type: 'int'; value: number }
   | { type: 'float'; value: number }
@@ -28,15 +37,6 @@ type StackElem = {
   frameName: string;
   frameId: number;
   locals: Map<string, Value>;
-};
-
-type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class';
-type HeapV = Array<Value> | Map<any, Value> | ClassValue;
-
-type RawHeapValue = {
-  ref: Address;
-  type: HeapType;
-  value: HeapV;
 };
 
 type HeapValue =

@@ -262,7 +262,7 @@ export async function startFrontend(
   context: vscode.ExtensionContext,
   trace: string | undefined
 ): Promise<VisualizationPanel | undefined> {
-  if (!testing && trace) {
+  if (trace) {
     return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
   } else {
     await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");

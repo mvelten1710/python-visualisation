@@ -22,6 +22,7 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
+				"C:/Users/todus/Desktop/Privat/BA/Repositories/python-visualisation/src/test/test_files",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
 			],

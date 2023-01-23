@@ -22,7 +22,7 @@ export async function initExtension(
   }
   const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
   // Check if Main File could be saved and the program can continue
-  if (testing || (startedEditor.length > 0 && (await startedEditor[0].document.save()))) {
+  if (startedEditor.length > 0 && (await startedEditor[0].document.save())) {
     // Get content of file to create temp file
     const content = await getFileContent(file);
     // Create new hash based on file content and old hash from previous run
