@@ -4,20 +4,67 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { Commands } from '../../constants';
 import path = require('path');
-// import * as myExtension from '../../extension';
 
 suite('BackendTrace Suite', () => {
-  test('Backend Trace Test: 1', async () => {
-    let files = Array<vscode.Uri>();
+  let files = Array<vscode.Uri>();
+  before(async () => {
+    const filePath = path.join(path.resolve(__dirname), '../test_files');
+    const fileCount = await vscode.workspace.findFiles('/suite_*.py');
     for (let i = 0; i < 1; i++) {
-      files.push(vscode.Uri.file(path.join(path.resolve(__dirname), '../test_files', `suite_${i + 1}.py`)));
+      files.push(vscode.Uri.file(path.join(filePath, `suite_${i + 1}.py`)));
     }
+  });
 
-    // Execute Command to trigger debugging
-    const trace = await vscode.commands.executeCommand(Commands.START_DEBUG, files[0], true);
-    // Wait for the Debugger to finish and and check for the backend trace
-    // If backend trace exists check predefined value with content of file
-    // If Trace doesnt exist => Error
+  after(() => {
+    vscode.window.showInformationMessage('All tests done!');
+  });
+
+  async function executeExtension(testFile: vscode.Uri): Promise<BackendTrace | undefined> {
+    return await vscode.commands.executeCommand(Commands.START_DEBUG, testFile, true);
+  }
+
+  /**
+   * Tests the initialization of primitive types.
+   */
+  test('Backend Trace Test: Primitive Variables initialization', async () => {
+    const trace = await executeExtension(files[0]);
     assert.ok(trace);
-  }).timeout(10000);
+  }).timeout(5000);
+
+  /**
+   * Tests the basic operation of primitive types.
+   */
+  test('Backend Trace Test: Primitive Variables Basic Operations', async () => {
+    const trace = await executeExtension(files[1]);
+    assert.ok(trace);
+  }).timeout(5000);
+
+  /**
+   * Tests the initialization for collection types.
+   */
+  test('Backend Trace Test: Collection Variables Initialization', async () => {
+    const trace = await executeExtension(files[2]);
+    assert.ok(trace);
+  }).timeout(5000);
+
+  /**
+   * Tests the basic operations of collection types
+   */
+  test('Backend Trace Test: Collection Variables Basic Operations', async () => {
+    const trace = await executeExtension(files[3]);
+    assert.ok(trace);
+  }).timeout(5000);
+
+  /**
+   * Tests the collections with collections in them
+   */
+  test('Backend Trace Test: Collection Variables With Collection Content', async () => {
+    const trace = await executeExtension(files[4]);
+    assert.ok(trace);
+  }).timeout(5000);
+
+  test('Backend Trace Test: Time Test', async () => {
+    const trace = await executeExtension(files[5]);
+    assert.ok(trace);
+  }).timeout(5000);
 });
