@@ -1,9 +1,5 @@
 import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
-import stringify from 'stringify-json';
-import { Md5 } from 'ts-md5';
-import { isPrimitive } from 'util';
-import { threadId } from 'worker_threads';
 
 export class BackendSession {
   static originalFile: vscode.Uri;
@@ -12,6 +8,7 @@ export class BackendSession {
   static trace: BackendTrace = [];
   static tracker: vscode.Disposable;
   static newHash: string;
+  static isNextRequest: boolean;
 
   constructor() {}
 
@@ -26,6 +23,7 @@ export class BackendSession {
     tempFile: vscode.Uri,
     hash: string
   ): Promise<boolean> {
+    this.isNextRequest = true;
     this.originalFile = originalFile;
     this.tempFile = tempFile;
     this.context = context;
@@ -86,7 +84,8 @@ export class BackendSession {
         (variable) =>
           variable.variablesReference > 0 &&
           variable.name !== 'class variables' &&
-          variable.name !== 'function variables'
+          variable.name !== 'function variables' &&
+          variable.name !== 'self'
       );
 
       const heapVariablesContent = await Promise.all(
@@ -296,17 +295,15 @@ export class BackendSession {
           rawHeapValues,
         ];
       case 'type':
-        const classProperties = (await this.variablesRequest(session, variableContent[0].variablesReference)).reduce(
-          (acc, elem) => {
-            const isHeap = elem.variablesReference > 0;
-            const value = this.mapVariableToValue(elem);
-            isHeap
-              ? rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value))
-              : null;
-            return acc.set(elem.name, value);
-          },
-          new Map<string, Value>()
-        );
+        const temp = await this.variablesRequest(session, variableContent[0].variablesReference);
+        const classProperties = temp.reduce((acc, elem) => {
+          const isHeap = elem.variablesReference > 0;
+          const value = this.mapVariableToValue(elem);
+          isHeap
+            ? rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value))
+            : null;
+          return acc.set(elem.name, value);
+        }, new Map<string, Value>());
         return [
           {
             type: 'class',
@@ -328,8 +325,14 @@ export class BackendSession {
     }
   }
 
-  public static async nextRequest(session: vscode.DebugSession, threadId: number) {
+  public static async stepInRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('stepIn', {
+      threadId: threadId,
+    });
+  }
+
+  public static async nextRequest(session: vscode.DebugSession, threadId: number) {
+    await session.customRequest('next', {
       threadId: threadId,
     });
   }
@@ -345,7 +348,6 @@ export class BackendSession {
       (
         await session.customRequest('variables', {
           variablesReference: id,
-          filter: 'named',
         })
       ).variables as Array<Variable>
     ).filter(

@@ -289,10 +289,15 @@ export function createDebugAdapterTracker(
             const threadId = message.body.threadId;
             if (threadId) {
               BackendSession.trace.push(await BackendSession.createBackendTraceElem(session, threadId));
-              BackendSession.nextRequest(session, threadId);
+              // TODO: Check if Class get initialized and do a next instead of step in
+              if (BackendSession.isNextRequest) {
+                BackendSession.stepInRequest(session, threadId);
+              } else {
+                BackendSession.stepInRequest(session, threadId);
+              }
             }
-          } else if (message.event === 'exited' || message.event === 'terminated') {
-            // Return the backendtrace
+          } else if (message.event === 'exception') {
+            // TODO: Create Viz from partial BackendTrace and add exeption into it if not already present
           }
         },
         async onExit(code, signal) {

@@ -1,15 +1,12 @@
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
-// TODO: Documentation
 type FrontendTraceElem = [number, string, string];
 // ############################################################################################
 // State Types for the Backend
 type BackendTrace = Array<BackendTraceElem>;
 type BackendTraceElem = {
   line: number;
-  // In stack are functions and calls
   stack: Array<StackElem>;
-  // In heap are value objects
   heap: Map<Address, HeapValue>;
 };
 
