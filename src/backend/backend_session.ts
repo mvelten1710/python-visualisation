@@ -30,12 +30,7 @@ export class BackendSession {
     this.trace = [];
     this.newHash = hash;
     this.tracker = createDebugAdapterTracker(testing, `${this.newHash}#${this.originalFile.fsPath}`, context);
-    const debugSuccess = await vscode.debug.startDebugging(
-      undefined,
-      this.getDebugConfiguration(this.tempFile)
-      // FIX: When Milestone November 2022 releases (on 2. December) these options are available to hide debug interface
-      // { suppressDebugStatusbar: true, suppressDebugToolbar: true, suppressDebugView: true}
-    );
+    const debugSuccess = await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(this.tempFile));
     await this.initializeRequest();
 
     return debugSuccess;
