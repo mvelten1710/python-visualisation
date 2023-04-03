@@ -55,6 +55,9 @@ function updateVisualization(traceElem) {
     </div>
   `;
   document.getElementById("viz").innerHTML = data;
+  document.getElementById("viz").addEventListener("scroll", () => {
+    updateRefArrows(traceElem);
+  });
 }
 
 /**
