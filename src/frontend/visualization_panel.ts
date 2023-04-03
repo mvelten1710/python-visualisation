@@ -93,7 +93,6 @@ export class VisualizationPanel {
           <script src="${this._script}"></script>
           <script src="${this._lineScript}"></script>
           <title>Code Visualization</title>
-          
       </head>
       <body class="scrollable" onload="onLoad()">
         <div class="column scrollable" id="viz">
@@ -109,12 +108,8 @@ export class VisualizationPanel {
           </div>
           <div class="row">
             <div class="column floating-left" id="frames">
-            
-            
             </div>
             <div class="column floating-right" id="objects">
-          
-          
             </div>
           </div>
         </div>
@@ -139,33 +134,42 @@ export class VisualizationPanel {
   private updateLineHighlight(remove: boolean = false) {
     // Can be undefined if no editor has focus
     // FIXME: Better editor selection for line highlighting
-    const editor = getOpenEditors();
-    if (editor.length !== 1) { return; }
+    const openEditors = getOpenEditors();
+    if (openEditors.length !== 1) { return; }
+    const editor = openEditors[0];
 
     if (remove) {
-      editor[0].setDecorations(nextLineExecuteHighlightType, []);
-      editor[0].setDecorations(currentLineExecuteHighlightType, []);
+      editor.setDecorations(nextLineExecuteHighlightType, []);
+      editor.setDecorations(currentLineExecuteHighlightType, []);
     } else {
-      const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
-      const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+      this.setNextLineHighlighting(editor);
+      this.setCurrentLineHighlighting(editor);
+    }
+  }
 
-      if (nextLine > -1) {
-        editor[0].setDecorations(
-          nextLineExecuteHighlightType,
-          createDecorationOptions(
-            new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
-          )
-        );
-      }
+  private setCurrentLineHighlighting(editor: vscode.TextEditor) {
+    const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
 
-      if (currentLine > -1) {
-        editor[0].setDecorations(
-          currentLineExecuteHighlightType,
-          createDecorationOptions(
-            new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
-          )
-        );
-      }
+    if (currentLine > -1) {
+      editor.setDecorations(
+        currentLineExecuteHighlightType,
+        createDecorationOptions(
+          new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
+        )
+      );
+    }
+  }
+
+  private setNextLineHighlighting(editor: vscode.TextEditor) {
+    const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+
+    if (nextLine > -1) {
+      editor.setDecorations(
+        nextLineExecuteHighlightType,
+        createDecorationOptions(
+          new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
+        )
+      );
     }
   }
 
