@@ -14,6 +14,7 @@ window.addEventListener('message', event => {
     case 'updateButtons':
       document.querySelector('#nextButton').disabled = !message.next;
       document.querySelector('#prevButton').disabled = !message.prev;
+      document.querySelector('#lastButton').disabled = !message.last;
       break;
     case 'updateContent':
       updateVisualization(message.traceElem);
@@ -79,15 +80,15 @@ function updateRefArrows(traceElem) {
   refTags.forEach(tag => tag.remove());
   if (tags) {
     refTags = tags.map(tag => {
-      return new LeaderLine(tag.elem1, tag.elem2, { 
+      return new LeaderLine(tag.elem1, tag.elem2, {
         size: 2,
-        path: 'magnet',
-        startSocket: 'right', 
-        endSocket: 'left', 
-        startPlug: 'square',
+        path: "magnet",
+        startSocket: "right",
+        endSocket: "left",
+        startPlug: "square",
         startSocketGravity: [50, -10],
         endSocketGravity: [-5, -5],
-        endPlug: 'arrow1',
+        endPlug: "arrow1",
         color: getColor(tag)
       });
     });
@@ -142,6 +143,7 @@ function getColor(tag) {
 
 function onLoad() {
   document.querySelector('#nextButton').disabled = false;
+  document.querySelector('#lastButton').disabled = false;
   document.querySelector('#prevButton').disabled = true;
 }
 

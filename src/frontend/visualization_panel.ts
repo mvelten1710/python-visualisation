@@ -129,6 +129,7 @@ export class VisualizationPanel {
         <div class="row margin-vertical">
           <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
           <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
+          <button class="margin-horizontal" id="lastButton" type="button" onclick="onClick('last')">Last</button>
         </div>
       </body>
       </html>
@@ -175,7 +176,16 @@ export class VisualizationPanel {
   }
 
   private updateTraceIndex(actionType: string) {
-    actionType === 'next' ? ++this._traceIndex : --this._traceIndex;
+    switch (actionType) {
+      case 'next': ++this._traceIndex;
+        break;
+      case 'prev': --this._traceIndex;
+        break;
+      case 'last': this._traceIndex = this._trace.length - 1;
+        break;
+      default:
+        break;
+    }
   }
 
   private async postMessagesToWebview(...args: string[]) {
@@ -184,10 +194,12 @@ export class VisualizationPanel {
         case 'updateButtons':
           const nextActive = this._traceIndex < this._trace.length - 1;
           const prevActive = this._traceIndex > 0;
+          const lastActive = this._traceIndex !== this._trace.length - 1;
           await this._panel!.webview.postMessage({
             command: 'updateButtons',
             next: nextActive,
             prev: prevActive,
+            last: lastActive,
           });
           break;
         case 'updateContent':
