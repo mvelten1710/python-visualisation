@@ -139,38 +139,43 @@ export class VisualizationPanel {
     // Can be undefined if no editor has focus
     // FIXME: Better editor selection for line highlighting
     const editor = getOpenEditors();
-    if (editor.length === 1) {
-      if (remove) {
-        editor[0].setDecorations(nextLineExecuteHighlightType, []);
-        editor[0].setDecorations(currentLineExecuteHighlightType, []);
-      } else {
-        const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
-        const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+    if (editor.length !== 1) { return; }
 
-        nextLine > -1
-          ? editor[0].setDecorations(
-              nextLineExecuteHighlightType,
-              createDecorationOptions(
-                new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
-              )
-            )
-          : undefined;
-        currentLine > -1
-          ? editor[0].setDecorations(
-              currentLineExecuteHighlightType,
-              createDecorationOptions(
-                new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
-              )
-            )
-          : undefined;
+    if (remove) {
+      editor[0].setDecorations(nextLineExecuteHighlightType, []);
+      editor[0].setDecorations(currentLineExecuteHighlightType, []);
+    } else {
+      const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
+      const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+
+      if (nextLine > -1) {
+        editor[0].setDecorations(
+          nextLineExecuteHighlightType,
+          createDecorationOptions(
+            new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
+          )
+        );
+      }
+
+      if (currentLine > -1) {
+        editor[0].setDecorations(
+          currentLineExecuteHighlightType,
+          createDecorationOptions(
+            new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
+          )
+        );
       }
     }
   }
 
   private async onClick(type: string) {
-    type === 'next' ? ++this._traceIndex : --this._traceIndex;
+    this.updateTraceIndex(type);
     await this.postMessagesToWebview('updateButtons', 'updateContent');
     this.updateLineHighlight();
+  }
+
+  private updateTraceIndex(actionType: string) {
+    actionType === 'next' ? ++this._traceIndex : --this._traceIndex;
   }
 
   private async postMessagesToWebview(...args: string[]) {

@@ -49,17 +49,11 @@ export class BackendSession {
   ): Promise<BackendTraceElem> {
     // Extract line and scopeName from current StackFrame
     const stackFrames = await this.stackTraceRequest(session, threadId);
-
     const line = stackFrames[0].line;
-
     const stackHeap = await this.createStackAndHeap(session, stackFrames);
 
-    // Get everthing together to return a BackendTraceElem
-    return {
-      line: line,
-      stack: stackHeap[0],
-      heap: stackHeap[1],
-    } as BackendTraceElem;
+    // Get everything together to return a BackendTraceElem
+    return this.createBackendTraceElemFrom(line, stackHeap);
   }
 
   private static async createStackAndHeap(
@@ -88,6 +82,7 @@ export class BackendSession {
           return await this.variablesRequest(session, variable.variablesReference);
         })
       );
+
       const specialVariables = (
         await Promise.all(
           allVariables
@@ -105,27 +100,12 @@ export class BackendSession {
       const heapVariables = heapVariablesContent.concat([specialVariables]);
       allVariables = [...primitiveVariables, ...heapVariablesWithoutSpecial, ...specialVariables];
 
-      stack.push({
-        frameName: stackFrames[i].name,
-        frameId: stackFrames[i].id,
-        locals: new Map<string, Value>(
-          allVariables.map((variable) => {
-            return [variable.name, this.mapVariableToValue(variable)];
-          })
-        ),
-      });
+      stack.push(this.createStackElemFrom(stackFrames[i], allVariables));
 
-      if (i === stackFrames.length - 1) {
+      const isLastFrame = i === stackFrames.length - 1;
+      if (isLastFrame) {
         let heapVars = new Map<Address, HeapValue>();
-        heap = await allVariables
-          .filter((v) => v.variablesReference > 0)
-          .reduce(async (acc, cv, index) => {
-            const result = await this.mapVariableToHeapValue(session, cv, heapVariables[index]);
-            heapVars = result[1].reduce((acc, cv) => {
-              return acc.set(cv.ref, { type: cv.type, value: cv.value } as HeapValue);
-            }, heapVars);
-            return (await acc).set(cv.variablesReference, result[0]);
-          }, Promise.resolve(heap));
+        heap = await this.getHeapOf(allVariables, heap, heapVars, session, heapVariables);
 
         // Get all variableRefs from heapvalues in other heap values
         // Check if every variableRef is in the heap if not take the variableRef's value and put it into the heap
@@ -138,11 +118,43 @@ export class BackendSession {
     }
     return [stack, heap];
   }
+  
+  private static createBackendTraceElemFrom(line: number, stackHeap: any): BackendTraceElem {
+    return {
+      line: line,
+      stack: stackHeap[0],
+      heap: stackHeap[1],
+    };
+  }
+
+  private static createStackElemFrom(stackFrame: StackFrame, variables: Variable[]): StackElem {
+    return {
+      frameName: stackFrame.name,
+      frameId: stackFrame.id,
+      locals: new Map<string, Value>(
+        variables.map((variable) => {
+          return [variable.name, this.mapVariableToValue(variable)];
+        })
+      ),
+    };
+  }
+
+  private static async getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession, heapVariables: Variable[][]): Promise<Map<number, HeapValue>> {
+    return await variables
+      .filter((v) => v.variablesReference > 0)
+      .reduce(async (acc, cv, index) => {
+        const result = await this.mapVariableToHeapValue(session, cv, heapVariables[index]);
+        heapVars = result[1].reduce((acc, cv) => {
+          return acc.set(cv.ref, { type: cv.type, value: cv.value } as HeapValue);
+        }, heapVars);
+        return (await acc).set(cv.variablesReference, result[0]);
+      }, Promise.resolve(heap));
+  }
 
   /**
    * Maps type Variable to type Value
    *
-   * @param variable variable Simple Variable thath gets mapped to a Value
+   * @param variable variable Simple Variable that gets mapped to a Value
    * @returns Value
    */
   private static mapVariableToValue(variable: Variable): Value {
@@ -255,69 +267,85 @@ export class BackendSession {
       case 'list':
       case 'tuple':
       case 'set':
-        const list = variableContent.map((elem) => {
-          const isHeap = elem.variablesReference > 0;
-          const heapElem = {
-            type: isHeap ? 'ref' : elem.type,
-            value: isHeap ? elem.variablesReference : elem.value,
-          };
-          isHeap
-            ? rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value))
-            : null;
-          return heapElem;
-        }) as Value[];
-        return [
-          {
-            type: variable.type,
-            value: list,
-          },
-          rawHeapValues,
-        ];
+        return this.createHeapValueForSet(variableContent, rawHeapValues, variable);
       case 'dict':
-        const dict = variableContent.reduce((acc, elem) => {
-          const isHeap = elem.variablesReference > 0;
-          const value = this.mapVariableToValue(elem);
-          isHeap
-            ? rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value))
-            : null;
-          return acc.set(elem.name, value);
-        }, new Map<any, Value>());
-        return [
-          {
-            type: 'dict',
-            value: dict,
-          },
-          rawHeapValues,
-        ];
+        return this.createHeapValueForDict(variableContent, rawHeapValues);
       case 'type':
-        const temp = await this.variablesRequest(session, variableContent[0].variablesReference);
-        const classProperties = temp.reduce((acc, elem) => {
-          const isHeap = elem.variablesReference > 0;
-          const value = this.mapVariableToValue(elem);
-          isHeap
-            ? rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value))
-            : null;
-          return acc.set(elem.name, value);
-        }, new Map<string, Value>());
-        return [
-          {
-            type: 'class',
-            value: {
-              className: variableContent[0].name,
-              properties: classProperties,
-            },
-          },
-          rawHeapValues,
-        ];
+        return await this.createHeapValueForType(variableContent, rawHeapValues, session);
       default:
-        return [
-          {
-            type: 'instance',
-            value: variable.type,
-          },
-          rawHeapValues,
-        ];
+        return this.createDefaultHeapValue(rawHeapValues, variable);
     }
+  }
+
+  private static createDefaultHeapValue(rawHeapValues: Array<RawHeapValue>, variable: Variable): [HeapValue, Array<RawHeapValue>] {
+    return [
+      {
+        type: 'instance',
+        value: variable.type,
+      },
+      rawHeapValues,
+    ];
+  }
+
+  private static createHeapValueForSet(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>, variable: Variable): [HeapValue, Array<RawHeapValue>] {
+    const list = variableContent.map((elem) => {
+      const isHeap = elem.variablesReference > 0;
+      const heapElem = {
+        type: isHeap ? 'ref' : elem.type,
+        value: isHeap ? elem.variablesReference : elem.value,
+      };
+      if (isHeap) {
+        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
+      }
+      return heapElem;
+    }) as Value[];
+    return [
+      {
+        type: variable.type,
+        value: list,
+      },
+      rawHeapValues,
+    ] as [HeapValue, Array<RawHeapValue>];
+  }
+
+  private static createHeapValueForDict(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>): [HeapValue, Array<RawHeapValue>] {
+    const dict = variableContent.reduce((acc, elem) => {
+      const isHeap = elem.variablesReference > 0;
+      const value = this.mapVariableToValue(elem);
+      if (isHeap) {
+        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
+      }
+      return acc.set(elem.name, value);
+    }, new Map<any, Value>());
+    return [
+      {
+        type: 'dict',
+        value: dict,
+      },
+      rawHeapValues,
+    ];
+  }
+
+  private static async createHeapValueForType(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>, session: vscode.DebugSession): Promise<[HeapValue, Array<RawHeapValue>]> {
+    const temp = await this.variablesRequest(session, variableContent[0].variablesReference);
+    const classProperties = temp.reduce((acc, elem) => {
+      const isHeap = elem.variablesReference > 0;
+      const value = this.mapVariableToValue(elem);
+      if (isHeap) {
+        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
+      }
+      return acc.set(elem.name, value);
+    }, new Map<string, Value>());
+    return [
+      {
+        type: 'class',
+        value: {
+          className: variableContent[0].name,
+          properties: classProperties,
+        },
+      },
+      rawHeapValues,
+    ] as [HeapValue, Array<RawHeapValue>];
   }
 
   public static async stepInRequest(session: vscode.DebugSession, threadId: number) {
