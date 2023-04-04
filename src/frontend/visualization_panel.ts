@@ -1,15 +1,11 @@
 import * as vscode from 'vscode';
-import path = require('path');
+import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
 import {
   backendToFrontend,
   createDecorationOptions,
-  getActiveEditor,
-  getContextState,
-  getOpenEditors,
-  setContextState,
-  showTextDocument,
+  getOpenEditors
 } from '../utils';
-import { Variables, currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
+import path = require('path');
 
 export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
@@ -23,7 +19,7 @@ export class VisualizationPanel {
     this._trace = trace.map(backendToFrontend);
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
-      'python-visualisation',
+      'python-visualization',
       'Code Visualization',
       vscode.ViewColumn.Beside,
       {
