@@ -127,6 +127,11 @@ export class VisualizationPanel {
           <input type="range" min="0" max="${this._trace.length - 1}" value="${this._traceIndex}" class="slider" id="traceSlider" oninput="onSlide(this.value)">
         </div>
         <div class="row margin-vertical">
+          <p>Step&nbsp;</p>
+          <p id="indexCounter">0</p>
+          <p>/${this._trace.length - 1}</p>
+        </div>
+        <div class="row margin-vertical">
           <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
           <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
           <button class="margin-horizontal" id="lastButton" type="button" onclick="onClick('last')">Last</button>
@@ -185,7 +190,7 @@ export class VisualizationPanel {
   }
 
   private async onSlide(sliderValue: number) {
-    this._traceIndex = sliderValue;
+    this._traceIndex = Number(sliderValue);
     await this.postMessagesToWebview('updateButtons', 'updateContent');
     this.updateLineHighlight();
   }

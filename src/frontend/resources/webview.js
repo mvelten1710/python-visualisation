@@ -21,6 +21,7 @@ window.addEventListener("message", (event) => {
       updateIntend(message.traceElem);
       updateRefArrows(message.traceElem);
       document.querySelector("#traceSlider").value = message.traceIndex;
+      document.querySelector("#indexCounter").innerHTML = message.traceIndex;
       break;
   }
 });
