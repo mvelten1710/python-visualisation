@@ -63,6 +63,8 @@ export class VisualizationPanel {
         switch (msg.command) {
           case 'onClick':
             return this.onClick(msg.type);
+          case 'onSlide':
+            return this.onSlide(msg.sliderValue);
         }
       },
       undefined,
@@ -120,6 +122,9 @@ export class VisualizationPanel {
         <div class="row margin-vertical">
           <div class="next-line-color"></div>
           <b class="margin-horizontal">Next line to be executed</b>
+        </div>
+        <div class="slidecontainer">
+          <input type="range" min="0" max="${this._trace.length - 1}" value="${this._traceIndex}" class="slider" id="traceSlider" oninput="onSlide(this.value)">
         </div>
         <div class="row margin-vertical">
           <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
@@ -179,6 +184,12 @@ export class VisualizationPanel {
     this.updateLineHighlight();
   }
 
+  private async onSlide(sliderValue: number) {
+    this._traceIndex = sliderValue;
+    await this.postMessagesToWebview('updateButtons', 'updateContent');
+    this.updateLineHighlight();
+  }
+
   private updateTraceIndex(actionType: string) {
     switch (actionType) {
       case 'next': ++this._traceIndex;
@@ -210,6 +221,7 @@ export class VisualizationPanel {
           await this._panel!.webview.postMessage({
             command: 'updateContent',
             traceElem: this._trace[this._traceIndex],
+            traceIndex: this._traceIndex,
           });
           break;
       }

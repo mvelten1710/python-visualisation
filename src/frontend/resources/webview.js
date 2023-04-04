@@ -20,6 +20,7 @@ window.addEventListener("message", (event) => {
       updateVisualization(message.traceElem);
       updateIntend(message.traceElem);
       updateRefArrows(message.traceElem);
+      document.querySelector("#traceSlider").value = message.traceIndex;
       break;
   }
 });
@@ -155,4 +156,8 @@ function onLoad() {
 
 async function onClick(type) {
   await vscode.postMessage({ command: "onClick", type: type });
+}
+
+async function onSlide(sliderValue) {
+  await vscode.postMessage({ command: "onSlide", sliderValue: sliderValue });
 }
