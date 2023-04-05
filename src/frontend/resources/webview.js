@@ -17,11 +17,11 @@ window.addEventListener("message", (event) => {
       document.querySelector("#lastButton").disabled = !message.last;
       break;
     case "updateContent":
+      document.querySelector("#traceSlider").value = message.traceIndex;
+      document.querySelector("#indexCounter").innerHTML = message.traceIndex;
       updateVisualization(message.traceElem);
       updateIntend(message.traceElem);
       updateRefArrows(message.traceElem);
-      document.querySelector("#traceSlider").value = message.traceIndex;
-      document.querySelector("#indexCounter").innerHTML = message.traceIndex;
       break;
   }
 });
@@ -84,23 +84,25 @@ function updateIntend(traceElem) {
  */
 function updateRefArrows(traceElem) {
   const tags = getCurrentTags(traceElem);
-  refTags.forEach((tag) => tag.remove());
 
-  if (tags) {
-    refTags = tags.map((tag) => {
-      return new LeaderLine(tag.elem1, tag.elem2, {
-        size: 2,
-        path: "magnet",
-        startSocket: "right",
-        endSocket: "left",
-        startPlug: "square",
-        startSocketGravity: [50, -10],
-        endSocketGravity: [-5, -5],
-        endPlug: "arrow1",
-        color: getColor(tag),
-      });
-    });
+  if (!tags) {
+    return;
   }
+
+  refTags.forEach((tag) => tag.remove());
+  refTags = tags.map((tag) => {
+    return new LeaderLine(tag.elem1, tag.elem2, {
+      size: 2,
+      path: "magnet",
+      startSocket: "right",
+      endSocket: "left",
+      startPlug: "square",
+      startSocketGravity: [50, -10],
+      endSocketGravity: [-5, -5],
+      endPlug: "arrow1",
+      color: getColor(tag),
+    });
+  });
 }
 
 /**
@@ -113,29 +115,32 @@ function updateRefArrows(traceElem) {
 function getCurrentTags(traceElem) {
   const normalTags = traceElem[1].match(/(?<=id=")(.+)Pointer[0-9]+/g);
   const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
-  if (normalTags) {
-    let s = [];
-    const t = normalTags.map((normalTag) => {
-      const id = normalTag.match(/(?<=.+)[0-9]+/g);
-      return {
-        tag: id,
-        elem1: document.getElementById(normalTag),
-        elem2: document.getElementById("heapEndPointer" + id),
-      };
-    });
-    if (heapTags) {
-      s = heapTags.map((t) => {
-        return {
-          tag: t,
-          elem1: document.getElementById("startPointer" + t),
-          elem2: document.getElementById("heapEndPointer" + t),
-        };
-      });
-    }
-    return [...s, ...t];
-  } else {
+
+  if (!normalTags) {
     return [];
   }
+
+  let s = [];
+  const t = normalTags.map((normalTag) => {
+    const id = normalTag.match(/(?<=.+)[0-9]+/g);
+    return {
+      tag: id,
+      elem1: document.getElementById(normalTag),
+      elem2: document.getElementById("heapEndPointer" + id),
+    };
+  });
+
+  if (heapTags) {
+    s = heapTags.map((t) => {
+      return {
+        tag: t,
+        elem1: document.getElementById("startPointer" + t),
+        elem2: document.getElementById("heapEndPointer" + t),
+      };
+    });
+  }
+
+  return [...s, ...t];
 }
 
 /**

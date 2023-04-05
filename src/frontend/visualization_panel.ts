@@ -7,6 +7,8 @@ import {
 } from '../utils';
 import path = require('path');
 
+const FRONTEND_RESOURCE_PATH = 'src/frontend/resources';
+
 export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
   private readonly _style: vscode.Uri;
@@ -24,14 +26,14 @@ export class VisualizationPanel {
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
-        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources'))],
+        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH))],
       }
     );
 
     // Get path to resource on disk
-    const stylesFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.css'));
-    const scriptFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.js'));
-    const lineFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'leader-line.min.js'));
+    const stylesFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'webview.css'));
+    const scriptFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'webview.js'));
+    const lineFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'leader-line.min.js'));
     // And get the special URI to use with the webview
     this._style = panel.webview.asWebviewUri(stylesFile);
     this._script = panel.webview.asWebviewUri(scriptFile);
@@ -52,6 +54,8 @@ export class VisualizationPanel {
       null,
       context.subscriptions
     );
+
+    // TODO irgendwas mit api dass fenster switched dann aufhören zu vizzen und dann wieder back active wenn wieder das hier aktiv ist
 
     // Message Receivers
     this._panel.webview.onDidReceiveMessage(
@@ -157,12 +161,7 @@ export class VisualizationPanel {
     const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
 
     if (currentLine > -1) {
-      editor.setDecorations(
-        currentLineExecuteHighlightType,
-        createDecorationOptions(
-          new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
-        )
-      );
+      this.setEditorDecorations(editor, currentLineExecuteHighlightType, currentLine);
     }
   }
 
@@ -170,13 +169,17 @@ export class VisualizationPanel {
     const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
 
     if (nextLine > -1) {
-      editor.setDecorations(
-        nextLineExecuteHighlightType,
-        createDecorationOptions(
-          new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
-        )
-      );
+      this.setEditorDecorations(editor, nextLineExecuteHighlightType, nextLine);
     }
+  }
+
+  private setEditorDecorations(editor: vscode.TextEditor, highlightType: vscode.TextEditorDecorationType, line: number) {
+    editor.setDecorations(
+      highlightType,
+      createDecorationOptions(
+        new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999))
+      )
+    );
   }
 
   private async onClick(type: string) {
