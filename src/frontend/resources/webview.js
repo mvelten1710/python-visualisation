@@ -77,6 +77,7 @@ function updateIntend(traceElem) {
     });
   }
 }
+
 /**
  * Updates the Reference Arrows from frame items to heap & heap items to heap items.
  *
