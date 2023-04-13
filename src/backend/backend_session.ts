@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
 
+enum HeapTypeEnum {
+  'list', 'tuple', 'set', 'dict', 'class'
+}
+
 export class BackendSession {
   static originalFile: vscode.Uri;
   static tempFile: vscode.Uri;
@@ -10,7 +14,7 @@ export class BackendSession {
   static newHash: string;
   static isNextRequest: boolean;
 
-  constructor() {}
+  constructor() { }
 
   /**
    * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
@@ -18,6 +22,7 @@ export class BackendSession {
    */
   public static async startDebugging(
     testing: boolean,
+    trackerId: string,
     context: vscode.ExtensionContext,
     originalFile: vscode.Uri,
     tempFile: vscode.Uri,
@@ -29,7 +34,7 @@ export class BackendSession {
     this.context = context;
     this.trace = [];
     this.newHash = hash;
-    this.tracker = createDebugAdapterTracker(testing, `${this.newHash}#${this.originalFile.fsPath}`, context);
+    this.tracker = createDebugAdapterTracker(testing, trackerId, context, this.tempFile);
     const debugSuccess = await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(this.tempFile));
     await this.initializeRequest();
 
@@ -77,9 +82,14 @@ export class BackendSession {
           variable.name !== 'self'
       );
 
+      // FIXME wrong output and much more time to execute
       const heapVariablesContent = await Promise.all(
         heapVariablesWithoutSpecial.map(async (variable) => {
-          return await this.variablesRequest(session, variable.variablesReference);
+          let refs = await this.variablesRequest(session, variable.variablesReference);
+          while (refs[refs.length - 1].type in HeapTypeEnum) {
+            refs = refs.concat(await this.variablesRequest(session, refs[refs.length - 1].variablesReference));
+          }
+          return refs;
         })
       );
 
@@ -118,7 +128,7 @@ export class BackendSession {
     }
     return [stack, heap];
   }
-  
+
   private static createBackendTraceElemFrom(line: number, stackHeap: any): BackendTraceElem {
     return {
       line: line,
@@ -366,7 +376,13 @@ export class BackendSession {
     });
   }
 
+  // FIXME Refactor
   private static async variablesRequest(session: vscode.DebugSession, id: number): Promise<Array<Variable>> {
+    const x = (
+      await session.customRequest('variables', {
+        variablesReference: id,
+      })
+    ).variables as Array<Variable>;
     return (
       (
         await session.customRequest('variables', {
