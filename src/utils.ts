@@ -16,10 +16,10 @@ export function getWorkspaceUri(): vscode.Uri | undefined {
   return vscode.workspace.workspaceFolders?.map((wsf) => wsf?.uri)[0];
 }
 
-export async function createBackendTraceOutput(backendTrace: BackendTrace, filePath: string) {
-  const fileName = path.basename(filePath).split('.')[0];
+export async function createBackendTraceOutput(backendTrace: BackendTrace, file: vscode.Uri) {
+  const fileName = path.basename(file.fsPath).split('.')[0];
   await vscode.workspace.fs.writeFile(
-    vscode.Uri.parse(vscode.workspace.workspaceFolders![0].uri.path + `/backend_trace_${fileName}.json`),
+    vscode.Uri.parse(file.fsPath.replace(path.basename(file.fsPath), `backend_trace_${fileName}.json`)),
     new util.TextEncoder().encode(stringify(backendTrace))
   );
 }
@@ -47,15 +47,16 @@ export async function createTempFileFromCurrentEditor(
   // Create temp file with the content of the python file and add a 'pass' at the end
   // to let the debugger evaluate the last statement of the file
   // Create a temp file in the workspace and delete it afterwards
-  const workspaceUri = getWorkspaceUri();
-  if (workspaceUri) {
-    const fileName = path.basename(file.fsPath).split('.')[0];
-    const tempFileUri = vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`);
-    const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
-    // Workspace is also opened, file can be written and path to file can be returned
-    await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
-    return tempFileUri;
-  }
+  // const workspaceUri = getWorkspaceUri();
+  const fileName = path.basename(file.fsPath).split('.')[0];
+
+  const tempFileUri = vscode.Uri.file(file.fsPath.replace(`/${fileName}.`, `/${fileName}_debug.`));
+  const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
+
+  // Workspace is also opened, file can be written and path to file can be returned
+  await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
+  return tempFileUri;
+
 }
 
 /**
@@ -88,9 +89,8 @@ export async function showTextDocument(file: vscode.Uri) {
   await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
 }
 
-export async function deleteTempFile(workspaceUri: vscode.Uri, file: vscode.Uri) {
-  const fileName = path.basename(file.fsPath).split('.')[0];
-  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`));
+export async function deleteTempFile(tempFile: vscode.Uri) {
+  await vscode.workspace.fs.delete(tempFile);
 }
 
 /**
@@ -257,7 +257,6 @@ function frameSubItem(frameName: string, name: string, value: Value): string {
 }
 
 export async function startFrontend(
-  testing: boolean,
   id: string,
   context: vscode.ExtensionContext,
   trace: string | undefined
@@ -278,9 +277,11 @@ export async function startFrontend(
  */
 export function createDebugAdapterTracker(
   testing: boolean,
-  id: string,
-  context: vscode.ExtensionContext
+  trackerId: string,
+  context: vscode.ExtensionContext,
+  tempFile: vscode.Uri
 ): vscode.Disposable {
+
   return vscode.debug.registerDebugAdapterTrackerFactory('python', {
     createDebugAdapterTracker(session: vscode.DebugSession) {
       return {
@@ -298,13 +299,14 @@ export function createDebugAdapterTracker(
             }
           } else if (message.event === 'exception') {
             // TODO: Create Viz from partial BackendTrace and add exeption into it if not already present
+            // vscode.debug.stopDebugging
           }
         },
         async onExit(code, signal) {
           // Call Frontend from here to start with trace
           if (BackendSession.trace) {
             if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile!.path);
+              await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile);
             }
             // Save Hash for file when debug was successful
             await setContextState(
@@ -320,15 +322,17 @@ export function createDebugAdapterTracker(
             );
 
             // Delete temp file
-            await deleteTempFile(getWorkspaceUri()!, BackendSession.originalFile);
+            await deleteTempFile(tempFile);
             // Show the original file again
-            await showTextDocument(BackendSession.originalFile);
-            // Init frontend with the backend trace
-            const trace = await getContextState<string>(
-              context,
-              Variables.TRACE_KEY + BackendSession.originalFile.fsPath
-            );
-            await startFrontend(testing, id, context, trace);
+            // await showTextDocument(BackendSession.originalFile);
+            // Init frontend with the backend trace when not testing
+            if (!testing) {
+              const trace = await getContextState<string>(
+                context,
+                Variables.TRACE_KEY + BackendSession.originalFile.fsPath
+              );
+              await startFrontend(trackerId, context, trace);
+            }
           }
           BackendSession.tracker.dispose();
         },
