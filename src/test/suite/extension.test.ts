@@ -2,46 +2,123 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { Commands } from '../../constants';
 import path = require('path');
-import { before, after, describe, it } from 'mocha';
+import { after, describe, it } from 'mocha';
+import util = require('util');
 import * as fs from 'fs';
 
-const TEN_SECONDS = 10000;
+const TESTFILE_DIR = path.join(path.resolve(__dirname), "testfiles");
+const TENTY_SECONDS = 20000;
+const singleVariable = `age = 10`;
+const primitiveVariablesInitialization =
+  `
+myPositiveInteger = 100
+myNegativeInteger = -420
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
-  });
-}
+myPositiveFloat = 60.9
+myNegativeFloat = -42.3
 
-suite('BackendTrace Suite', () => {
-  let files = new Map<string, vscode.Uri>();
+myString = 'Hello World'
+myEmptyString = ''
+`;
+const primitiveVariablesBasicOperations =
+  `
+myPositiveInteger = 10
+myNegativeInteger = -20
 
-  before(async () => {
-    const filePath = path.join(path.resolve(__dirname), '/test_files');
+myPositiveInteger = myPositiveInteger - myNegativeInteger
+myNegativeInteger = myNegativeInteger + myPositiveInteger
+myPositiveInteger = myNegativeInteger / 10.5
+myNegativeInteger = myNegativeInteger * 2.3
 
-    fs.readdir(filePath, (err, fileNames: string[]) => {
-      fileNames.forEach((fileName) => {
-        const uri = vscode.Uri.file(path.join(filePath + '/' + fileName));
-        files.set(fileName.replace('.py', ''), uri);
-      });
+myPositiveFloat = 60.9
+myNegativeFloat = -42.3
+
+myPositiveFloat = myPositiveFloat - myNegativeFloat
+myNegativeFloat = myNegativeFloat + myPositiveFloat
+myPositiveFloat = myNegativeFloat / 5
+myNegativeFloat = myNegativeFloat * 20.1
+
+
+myString = 'Hello'
+myEmptyString = ''
+
+myEmptyString = 'World'
+myString = myString + myEmptyString
+
+
+myTrueBoolean = True
+myFalseBoolean = False
+
+myTrueBoolean = myTrueBoolean - myFalseBoolean
+  `;
+
+suite('The Backend when', () => {
+  after(() => {
+    fs.rm(TESTFILE_DIR, { recursive: true }, err => {
+      if (err) { throw err; }
+      console.log("Generated Testfiles are deleted!");
     });
   });
 
-  after(() => {
-    vscode.window.showInformationMessage('All tests done!');
-  });
+  /** Basic functionality
+   * Creates a Trace
+   * Tace contains correct input
+   * Deletes tmp-Files like <name>_debug
+   */
+  describe("creating a simple Trace", function () {
+    it("should create a Trace", async function () {
+      const testFile = await createTestFileWith("singleVariableTrace", "py", singleVariable);
+      if (!testFile) {
+        this.skip();
+      }
 
-  async function executeExtension(testFile: vscode.Uri): Promise<BackendTrace | undefined> {
-    return await vscode.commands.executeCommand(Commands.START_DEBUG, testFile, true);
-  }
+      const result = await executeExtension(testFile);
+
+      assert.ok(result);
+    }).timeout(TENTY_SECONDS);
+
+    it("should contains with one Variable in File one BackendTrace-Element", async function () {
+      const testFile = await createTestFileWith("singleVariableContains", "py", singleVariable);
+      if (!testFile) {
+        this.skip();
+      }
+
+      const result = await executeExtension(testFile);
+
+      if (!result) {
+        assert.fail("No result was generated!");
+      }
+
+      assert.equal(result.length, 2);
+      assert.equal(result[0].stack[0].locals.size, 0);
+      assert.equal(result[0].heap.size, 0);
+      assert.equal(result[1].stack[0].locals.get("age")?.type, 'int');
+      assert.equal(result[1].stack[0].locals.get("age")?.value, 10);
+      assert.equal(result[1].heap.size, 0);
+    }).timeout(TENTY_SECONDS);
+
+    it("should deletes temporary created Files", async function () {
+      const testFile = await createTestFileWith("singleVariableDelete", "py", singleVariable);
+      if (!testFile) {
+        this.skip();
+      }
+
+      await executeExtension(testFile);
+
+      fs.readdir(path.join(TESTFILE_DIR, `/singleVariableDelete/`), (err, fileNames: string[]) => {
+        if (err) { throw err; }
+        assert.ok(!fileNames.includes("singleVariableDelete_debug"));
+      });
+    }).timeout(TENTY_SECONDS);
+  });
 
   /** Primitive Variables
    * Tests the initialization of primitive types.
    * Tests the basic operation of primitive types.
    */
-  describe('Primitive Variables', function () {
-    it('Initialization', async function () {
-      const testFile = files.get('primitiveVariablesInitialization');
+  describe('working with primitive variables', function () {
+    it('should state all types correctly', async function () {
+      const testFile = await createTestFileWith("primitiveVariablesInitialization", "py", primitiveVariablesInitialization);
       if (!testFile) {
         this.skip();
       }
@@ -49,11 +126,10 @@ suite('BackendTrace Suite', () => {
       const result = await executeExtension(testFile);
 
       assert.ok(result);
-    }).timeout(2 * TEN_SECONDS);
+    }).timeout(TENTY_SECONDS);
 
     it('Basic Operations', async function () {
-      // primitiveVariablesBasicOperations
-      const testFile = files.get('primitiveVariablesBasicOperations');
+      const testFile = await createTestFileWith("primitiveVariablesBasicOperations", "py", primitiveVariablesBasicOperations);
       if (!testFile) {
         this.skip();
       }
@@ -61,7 +137,7 @@ suite('BackendTrace Suite', () => {
       const result = await executeExtension(testFile);
 
       assert.ok(result);
-    }).timeout(2 * TEN_SECONDS);
+    }).timeout(TENTY_SECONDS);
   });
 
   /** Collection Types
@@ -69,42 +145,25 @@ suite('BackendTrace Suite', () => {
    * Tests the basic operations of collection types
    * Tests the collections with collections in them
    */
-  describe('Collection Types', () => {
-    it('Initialization', async function () {
-      const testFile = files.get('');
-      if (!testFile) {
-        this.skip();
-      }
-
-      const result = await executeExtension(testFile);
-
-      assert.ok(result);
-    });
-
-    it('Basic Operations', async function () {
-      const testFile = files.get('');
-      if (!testFile) {
-        this.skip();
-      }
-
-      const result = await executeExtension(testFile);
-
-      assert.ok(result);
-    });
-
-    it('Collections with Collections', async function () {
-      const testFile = files.get('');
-      if (!testFile) {
-        this.skip();
-      }
-
-      const result = await executeExtension(testFile);
-
-      assert.ok(result);
-    });
-  }).timeout(TEN_SECONDS);
 
   /**
    * Tests that the execution time is not too long
    */
 });
+
+/** helper functions 
+ * All helper Functions
+ * TODO could be in in extra class 'ExecutionHelper' when more than this one tests exists
+ */
+async function executeExtension(testFile: vscode.Uri): Promise<BackendTrace | undefined> {
+  return await vscode.commands.executeCommand(Commands.START_DEBUG, testFile, true);
+}
+
+async function createTestFileWith(fileName: string, fileType: string, content: string): Promise<vscode.Uri | undefined> {
+  const testFileUri = vscode.Uri.file(path.join(TESTFILE_DIR + `/${fileName}/${fileName}.${fileType}`));
+
+  const utf8Content = new util.TextEncoder().encode(content);
+  await vscode.workspace.fs.writeFile(testFileUri, utf8Content);
+
+  return testFileUri;
+}
