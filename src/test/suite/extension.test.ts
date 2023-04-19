@@ -3,10 +3,9 @@ import * as vscode from 'vscode';
 import { Commands } from '../../constants';
 import path = require('path');
 import { after, describe, it } from 'mocha';
-import util = require('util');
 import * as fs from 'fs';
+import { TESTFILE_DIR, TestExecutionHelper } from './TestExecutionHelper';
 
-const TESTFILE_DIR = path.join(path.resolve(__dirname), "testfiles");
 const TENTY_SECONDS = 20000;
 const singleVariable = `age = 10`;
 const primitiveVariablesInitialization =
@@ -66,7 +65,7 @@ suite('The Backend when', () => {
    */
   describe("creating a simple Trace", function () {
     it("should create a Trace", async function () {
-      const testFile = await createTestFileWith("singleVariableTrace", "py", singleVariable);
+      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableTrace", "py", singleVariable);
       if (!testFile) {
         this.skip();
       }
@@ -77,7 +76,7 @@ suite('The Backend when', () => {
     }).timeout(TENTY_SECONDS);
 
     it("should contains with one Variable in File one BackendTrace-Element", async function () {
-      const testFile = await createTestFileWith("singleVariableContains", "py", singleVariable);
+      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableContains", "py", singleVariable);
       if (!testFile) {
         this.skip();
       }
@@ -97,16 +96,17 @@ suite('The Backend when', () => {
     }).timeout(TENTY_SECONDS);
 
     it("should deletes temporary created Files", async function () {
-      const testFile = await createTestFileWith("singleVariableDelete", "py", singleVariable);
+      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableDelete", "py", singleVariable);
       if (!testFile) {
         this.skip();
       }
 
       await executeExtension(testFile);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       fs.readdir(path.join(TESTFILE_DIR, `/singleVariableDelete/`), (err, fileNames: string[]) => {
         if (err) { throw err; }
-        assert.ok(!fileNames.includes("singleVariableDelete_debug"));
+        assert.ok(!fileNames.includes("singleVariableDelete_debug.py"));
       });
     }).timeout(TENTY_SECONDS);
   });
@@ -117,7 +117,7 @@ suite('The Backend when', () => {
    */
   describe('working with primitive variables', function () {
     it('should state all types correctly', async function () {
-      const testFile = await createTestFileWith("primitiveVariablesInitialization", "py", primitiveVariablesInitialization);
+      const testFile = await TestExecutionHelper.createTestFileWith("primitiveVariablesInitialization", "py", primitiveVariablesInitialization);
       if (!testFile) {
         this.skip();
       }
@@ -128,7 +128,7 @@ suite('The Backend when', () => {
     }).timeout(TENTY_SECONDS);
 
     it('Basic Operations', async function () {
-      const testFile = await createTestFileWith("primitiveVariablesBasicOperations", "py", primitiveVariablesBasicOperations);
+      const testFile = await TestExecutionHelper.createTestFileWith("primitiveVariablesBasicOperations", "py", primitiveVariablesBasicOperations);
       if (!testFile) {
         this.skip();
       }
@@ -156,13 +156,4 @@ suite('The Backend when', () => {
  */
 async function executeExtension(testFile: vscode.Uri): Promise<BackendTrace | undefined> {
   return await vscode.commands.executeCommand(Commands.START_DEBUG, testFile, true);
-}
-
-async function createTestFileWith(fileName: string, fileType: string, content: string): Promise<vscode.Uri | undefined> {
-  const testFileUri = vscode.Uri.file(path.join(TESTFILE_DIR + `/${fileName}/${fileName}.${fileType}`));
-
-  const utf8Content = new util.TextEncoder().encode(content);
-  await vscode.workspace.fs.writeFile(testFileUri, utf8Content);
-
-  return testFileUri;
 }

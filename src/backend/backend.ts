@@ -1,12 +1,11 @@
+import { Md5 } from 'ts-md5';
 import * as vscode from 'vscode';
 import { Variables } from '../constants';
 import {
-  createTempFileFromCurrentEditor as createTempFileFromContent,
-  generateMD5Hash,
   getContextState,
-  getFileContent,
   startFrontend,
 } from '../utils';
+import { FileHandler } from './FileHandler';
 import { BackendSession } from './backend_session';
 
 const ERR_FILENAME_UNDEFINED = 'The passed filename variable was undefined!\nThe extension finished';
@@ -25,15 +24,15 @@ export async function initExtension(
   }
 
   // Get content of file to create temp file
-  const content = await getFileContent(file);
+  const content = await FileHandler.getContentOf(file);
   // Create new hash based on file content and old hash from previous run
-  const newHash = generateMD5Hash(content);
+  const newHash = Md5.hashStr(content);
   const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
   const trackerId = `${newHash}#${file.fsPath}`;
 
   // Based on the new Hash its decided if debugger is run or not
   if (testing || oldHash !== newHash) {
-    const tempFileUri = await createTempFileFromContent(file, content);
+    const tempFileUri = await FileHandler.duplicateFileAndExtendWithPass(file, content);
     if (!tempFileUri) {
       showSpecificErrorMessage(ERR_TRACE_GENERATE);
       return;

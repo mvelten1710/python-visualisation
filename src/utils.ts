@@ -1,63 +1,9 @@
-import * as vscode from 'vscode';
-import util = require('util');
-import path = require('path');
-import { Variables } from './constants';
-import { BackendSession } from './backend/backend_session';
-import { Md5 } from 'ts-md5';
 import stringify from 'stringify-json';
+import * as vscode from 'vscode';
+import { FileHandler } from './backend/FileHandler';
+import { BackendSession } from './backend/backend_session';
+import { Variables } from './constants';
 import { VisualizationPanel } from './frontend/visualization_panel';
-
-/**
- *  Gets the uri for the currently opened workspace, if one is opened.
- *
- * @returns WorkspaceFolder | undefined If a workspace is open it returns the WorkspaceFolder Uri, if not undefined is returned
- */
-export function getWorkspaceUri(): vscode.Uri | undefined {
-  return vscode.workspace.workspaceFolders?.map((wsf) => wsf?.uri)[0];
-}
-
-export async function createBackendTraceOutput(backendTrace: BackendTrace, file: vscode.Uri) {
-  const fileName = path.basename(file.fsPath).split('.')[0];
-  await vscode.workspace.fs.writeFile(
-    vscode.Uri.parse(file.fsPath.replace(path.basename(file.fsPath), `backend_trace_${fileName}.json`)),
-    new util.TextEncoder().encode(stringify(backendTrace))
-  );
-}
-
-/**
- * Reads the file with the given uri and decodes the contens to a string and afterwards splits every line into a string array
- *
- * @param fileUri the uri of the file that needs to be retrieved
- * @returns the content of the file in a string array line by line
- */
-export async function getFileContent(fileUri: vscode.Uri): Promise<string> {
-  return new util.TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(fileUri));
-}
-
-/**
- * Creates a file based on the currently opened editor. If no editor or workspace is open,
- * no file can be created.
- *
- * @returns The uri of a temporarily created file or undefined
- */
-export async function createTempFileFromCurrentEditor(
-  file: vscode.Uri,
-  fileContent: string
-): Promise<vscode.Uri | undefined> {
-  // Create temp file with the content of the python file and add a 'pass' at the end
-  // to let the debugger evaluate the last statement of the file
-  // Create a temp file in the workspace and delete it afterwards
-  // const workspaceUri = getWorkspaceUri();
-  const fileName = path.basename(file.fsPath).split('.')[0];
-
-  const tempFileUri = vscode.Uri.file(file.fsPath.replace(`/${fileName}.`, `/${fileName}_debug.`));
-  const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
-
-  // Workspace is also opened, file can be written and path to file can be returned
-  await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
-  return tempFileUri;
-
-}
 
 /**
  * Simply returns a array of all open text editors
@@ -76,14 +22,6 @@ export function createDecorationOptions(range: vscode.Range): vscode.DecorationO
   ];
 }
 
-export async function showTextDocument(file: vscode.Uri) {
-  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
-}
-
-export async function deleteTempFile(tempFile: vscode.Uri) {
-  await vscode.workspace.fs.delete(tempFile);
-}
-
 /**
  * Returns the value of the given config attribute
  *
@@ -92,10 +30,6 @@ export async function deleteTempFile(tempFile: vscode.Uri) {
  */
 export function getConfigValue<T>(configAttribute: string): T | undefined {
   return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttribute);
-}
-
-export function generateMD5Hash(content: string): string {
-  return Md5.hashStr(content);
 }
 
 // Read File -> Create Hash -> Save Hash -> Compare saved Hash with Hash from file directly -> If Hash is same use already generated Trace, If not start debugger
@@ -297,7 +231,7 @@ export function createDebugAdapterTracker(
           // Call Frontend from here to start with trace
           if (BackendSession.trace) {
             if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.originalFile);
+              await FileHandler.createBackendTraceOutput(BackendSession.trace, BackendSession.originalFile);
             }
             // Save Hash for file when debug was successful
             await setContextState(
@@ -312,8 +246,7 @@ export function createDebugAdapterTracker(
               stringify(BackendSession.trace)
             );
 
-            // Delete temp file
-            await deleteTempFile(tempFile);
+            await FileHandler.deleteFile(tempFile);
             // Show the original file again
             // await showTextDocument(BackendSession.originalFile);
             // Init frontend with the backend trace when not testing
