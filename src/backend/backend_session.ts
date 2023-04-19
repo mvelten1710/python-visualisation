@@ -1,9 +1,6 @@
 import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
-
-enum HeapTypeEnum {
-  'list', 'tuple', 'set', 'dict', 'class'
-}
+import { VariableMapper } from './VariableMapper';
 
 export class BackendSession {
   static originalFile: vscode.Uri;
@@ -13,8 +10,6 @@ export class BackendSession {
   static tracker: vscode.Disposable;
   static newHash: string;
   static isNextRequest: boolean;
-
-  constructor() { }
 
   /**
    * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
@@ -82,11 +77,12 @@ export class BackendSession {
           variable.name !== 'self'
       );
 
-      // FIXME wrong output and much more time to execute
+      // FIXME wrong output 
       const heapVariablesContent = await Promise.all(
         heapVariablesWithoutSpecial.map(async (variable) => {
           let refs = await this.variablesRequest(session, variable.variablesReference);
-          while (refs[refs.length - 1].type in HeapTypeEnum) {
+ // FIXME Nur 1 referenz mehr, weil 3 tupel, nur fürs experimentieren
+          if (refs[refs.length - 1].variablesReference > 0) {
             refs = refs.concat(await this.variablesRequest(session, refs[refs.length - 1].variablesReference));
           }
           return refs;
@@ -143,7 +139,7 @@ export class BackendSession {
       frameId: stackFrame.id,
       locals: new Map<string, Value>(
         variables.map((variable) => {
-          return [variable.name, this.mapVariableToValue(variable)];
+          return [variable.name, VariableMapper.toValue(variable)];
         })
       ),
     };
@@ -153,209 +149,12 @@ export class BackendSession {
     return await variables
       .filter((v) => v.variablesReference > 0)
       .reduce(async (acc, cv, index) => {
-        const result = await this.mapVariableToHeapValue(session, cv, heapVariables[index]);
+        const result = await VariableMapper.toHeapValue(session, cv, heapVariables[index]);
         heapVars = result[1].reduce((acc, cv) => {
           return acc.set(cv.ref, { type: cv.type, value: cv.value } as HeapValue);
         }, heapVars);
         return (await acc).set(cv.variablesReference, result[0]);
       }, Promise.resolve(heap));
-  }
-
-  /**
-   * Maps type Variable to type Value
-   *
-   * @param variable variable Simple Variable that gets mapped to a Value
-   * @returns Value
-   */
-  private static mapVariableToValue(variable: Variable): Value {
-    switch (variable.type) {
-      case 'int':
-        return {
-          type: 'int',
-          value: parseInt(variable.value),
-        };
-      case 'float':
-        return {
-          type: 'float',
-          value: parseFloat(variable.value),
-        };
-      case 'NoneType':
-      case 'str':
-        return {
-          type: 'str',
-          value: variable.value,
-        };
-      case 'bool':
-        return {
-          type: 'bool',
-          value: variable.value,
-        };
-      default:
-        return {
-          type: 'ref',
-          value: variable.variablesReference,
-        };
-    }
-  }
-
-  private static rawToHeapValue(address: Address, type: HeapType, value: string): RawHeapValue {
-    return {
-      ref: address,
-      type: type,
-      value: this.stringToObject(type, value),
-    };
-  }
-
-  private static stringToObject(type: HeapType, value: string): HeapV {
-    const temp = JSON.parse(this.toValidJson(type, value));
-    switch (type) {
-      case 'list':
-      case 'tuple':
-      case 'set':
-        return (temp as Array<string>).map((val) => {
-          return { type: 'str', value: val };
-        });
-      case 'dict':
-        const keys = Array.from(Object.keys(temp.value));
-        const values = Array.from(Object.values(temp.value)) as Array<any>;
-        return keys.reduce((acc, cv, index) => {
-          return acc.set(cv, { type: 'str', value: values[index] });
-        }, new Map<any, Value>());
-      case 'class':
-        return { className: '', properties: new Map<string, Value>() };
-    }
-  }
-
-  private static toValidJson(type: HeapType, value: string): string {
-    return value.replace(/None|'|(\(|\))|(\{|\})|[0-9]+|(True|False)/g, (substring, _) => {
-      let result = '';
-      switch (substring) {
-        case 'None':
-          result = '"None"';
-          break;
-        case "'":
-          result = '"';
-          break;
-        case 'True':
-          result = JSON.stringify(substring);
-          break;
-        case '{':
-          result = type === 'set' ? '[' : '{';
-          break;
-        case '(':
-          result = '[';
-          break;
-        case '}':
-          result = type === 'set' ? ']' : '}';
-          break;
-        case ')':
-          result = ']';
-          break;
-        default:
-          if (!isNaN(Number(substring))) {
-            result = JSON.stringify(substring);
-          }
-          break;
-      }
-      return result;
-    });
-  }
-
-  /**
-   * Maps a Variable to a HeapValue Object
-   *
-   * @param variable Simple Variable that gets mapped to a HeapValue
-   * @returns HeapValue a object that resides in the heap
-   */
-  private static async mapVariableToHeapValue(
-    session: vscode.DebugSession,
-    variable: Variable,
-    variableContent: Variable[]
-  ): Promise<[HeapValue, Array<RawHeapValue>]> {
-    let rawHeapValues = new Array<RawHeapValue>();
-    switch (variable.type) {
-      case 'list':
-      case 'tuple':
-      case 'set':
-        return this.createHeapValueForSet(variableContent, rawHeapValues, variable);
-      case 'dict':
-        return this.createHeapValueForDict(variableContent, rawHeapValues);
-      case 'type':
-        return await this.createHeapValueForType(variableContent, rawHeapValues, session);
-      default:
-        return this.createDefaultHeapValue(rawHeapValues, variable);
-    }
-  }
-
-  private static createDefaultHeapValue(rawHeapValues: Array<RawHeapValue>, variable: Variable): [HeapValue, Array<RawHeapValue>] {
-    return [
-      {
-        type: 'instance',
-        value: variable.type,
-      },
-      rawHeapValues,
-    ];
-  }
-
-  private static createHeapValueForSet(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>, variable: Variable): [HeapValue, Array<RawHeapValue>] {
-    const list = variableContent.map((elem) => {
-      const isHeap = elem.variablesReference > 0;
-      const heapElem = {
-        type: isHeap ? 'ref' : elem.type,
-        value: isHeap ? elem.variablesReference : elem.value,
-      };
-      if (isHeap) {
-        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
-      }
-      return heapElem;
-    }) as Value[];
-    return [
-      {
-        type: variable.type,
-        value: list,
-      },
-      rawHeapValues,
-    ] as [HeapValue, Array<RawHeapValue>];
-  }
-
-  private static createHeapValueForDict(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>): [HeapValue, Array<RawHeapValue>] {
-    const dict = variableContent.reduce((acc, elem) => {
-      const isHeap = elem.variablesReference > 0;
-      const value = this.mapVariableToValue(elem);
-      if (isHeap) {
-        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
-      }
-      return acc.set(elem.name, value);
-    }, new Map<any, Value>());
-    return [
-      {
-        type: 'dict',
-        value: dict,
-      },
-      rawHeapValues,
-    ];
-  }
-
-  private static async createHeapValueForType(variableContent: Variable[], rawHeapValues: Array<RawHeapValue>, session: vscode.DebugSession): Promise<[HeapValue, Array<RawHeapValue>]> {
-    const temp = await this.variablesRequest(session, variableContent[0].variablesReference);
-    const classProperties = temp.reduce((acc, elem) => {
-      const isHeap = elem.variablesReference > 0;
-      const value = this.mapVariableToValue(elem);
-      if (isHeap) {
-        rawHeapValues.push(this.rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value));
-      }
-      return acc.set(elem.name, value);
-    }, new Map<string, Value>());
-    return [
-      {
-        type: 'class',
-        value: {
-          className: variableContent[0].name,
-          properties: classProperties,
-        },
-      },
-      rawHeapValues,
-    ] as [HeapValue, Array<RawHeapValue>];
   }
 
   public static async stepInRequest(session: vscode.DebugSession, threadId: number) {
@@ -378,11 +177,6 @@ export class BackendSession {
 
   // FIXME Refactor
   private static async variablesRequest(session: vscode.DebugSession, id: number): Promise<Array<Variable>> {
-    const x = (
-      await session.customRequest('variables', {
-        variablesReference: id,
-      })
-    ).variables as Array<Variable>;
     return (
       (
         await session.customRequest('variables', {
