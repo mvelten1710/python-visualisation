@@ -68,15 +68,6 @@ export function getOpenEditors(): readonly vscode.TextEditor[] {
   return vscode.window.visibleTextEditors;
 }
 
-/**
- * Simply returns the currenly focused TextEditor if one is focused, otherwise undefined
- *
- * @returns The currently focused vscode.TextEditor. If non is open or focused returns undefined
- */
-export function getActiveEditor(): vscode.TextEditor | undefined {
-  return vscode.window.activeTextEditor;
-}
-
 export function createDecorationOptions(range: vscode.Range): vscode.DecorationOptions[] {
   return [
     {
@@ -306,7 +297,7 @@ export function createDebugAdapterTracker(
           // Call Frontend from here to start with trace
           if (BackendSession.trace) {
             if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile);
+              await createBackendTraceOutput(BackendSession.trace, BackendSession.originalFile);
             }
             // Save Hash for file when debug was successful
             await setContextState(
