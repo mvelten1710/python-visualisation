@@ -3,7 +3,7 @@ import { JsonMapper } from "../../backend/JsonMapper";
 import { describe, it } from 'mocha';
 
 suite('A JSONMapper when', () => {
-    describe.only("getting validJsonFor Heap", function () {
+    describe("getting validJsonFor Heap", function () {
         it("should return correct list json when a list is given", function () {
             const testValue = "[1, 2, 3]";
             const type: HeapType = 'list';
