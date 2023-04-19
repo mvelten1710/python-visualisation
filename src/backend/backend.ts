@@ -56,7 +56,7 @@ export async function initExtension(
     await startFrontend(trackerId, context, trace);
   }
 
-  while (vscode.debug.activeDebugSession) {
+  while (testing && vscode.debug.activeDebugSession) {
     await new Promise(resolve => {
       setTimeout(resolve, 100);
     });
