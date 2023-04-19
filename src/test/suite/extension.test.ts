@@ -56,7 +56,6 @@ suite('The Backend when', () => {
   after(() => {
     fs.rm(TESTFILE_DIR, { recursive: true }, err => {
       if (err) { throw err; }
-      console.log("Generated Testfiles are deleted!");
     });
   });
 
