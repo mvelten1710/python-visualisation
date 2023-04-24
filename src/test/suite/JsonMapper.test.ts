@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { JsonMapper } from "../../backend/JsonMapper";
+import * as JsonMapper from "../../backend/JsonMapper";
 import { describe, it } from 'mocha';
 
 suite('A JSONMapper when', () => {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { createDebugAdapterTracker } from '../utils';
-import { VariableMapper } from './VariableMapper';
+import * as VariableMapper from "./VariableMapper";
 
 export class BackendSession {
   static originalFile: vscode.Uri;

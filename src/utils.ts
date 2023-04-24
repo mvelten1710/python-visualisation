@@ -1,6 +1,6 @@
 import stringify from 'stringify-json';
 import * as vscode from 'vscode';
-import { FileHandler } from './backend/FileHandler';
+import * as FileHandler from './backend/FileHandler';
 import { BackendSession } from './backend/backend_session';
 import { Variables } from './constants';
 import { VisualizationPanel } from './frontend/visualization_panel';

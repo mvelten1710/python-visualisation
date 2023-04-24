@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import { after, describe, it } from 'mocha';
 import * as vscode from 'vscode';
-import { FileHandler } from '../../backend/FileHandler';
+import * as FileHandler from '../../backend/FileHandler';
 import { TESTFILE_DIR, TestExecutionHelper } from './TestExecutionHelper';
 import path = require('path');
 import util = require('util');

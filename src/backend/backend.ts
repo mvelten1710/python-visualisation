@@ -5,7 +5,7 @@ import {
   getContextState,
   startFrontend,
 } from '../utils';
-import { FileHandler } from './FileHandler';
+import * as FileHandler from './FileHandler';
 import { BackendSession } from './backend_session';
 
 const ERR_FILENAME_UNDEFINED = 'The passed filename variable was undefined!\nThe extension finished';
@@ -34,7 +34,7 @@ export async function initExtension(
   if (testing || oldHash !== newHash) {
     const tempFileUri = await FileHandler.duplicateFileAndExtendWithPass(file, content);
     if (!tempFileUri) {
-      showSpecificErrorMessage(ERR_TRACE_GENERATE);
+      await showSpecificErrorMessage(ERR_TRACE_GENERATE);
       return;
     }
     const traceWasSuccessful = await generateBackendTrace(testing, trackerId, context, file, tempFileUri, newHash);
