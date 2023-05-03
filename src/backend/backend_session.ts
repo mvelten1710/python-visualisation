@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { createDebugAdapterTracker } from '../utils';
 import * as VariableMapper from "./VariableMapper";
 
 export class BackendSession {
@@ -10,31 +9,6 @@ export class BackendSession {
   static tracker: vscode.Disposable;
   static newHash: string;
   static isNextRequest: boolean;
-
-  /**
-   * Starts debugging on given filename, but first sets a breakpoint on the start of the file to step through the file
-   * @param tempFile the name of the main file that needs to be debugged for visualization later on
-   */
-  public static async startDebugging(
-    testing: boolean,
-    trackerId: string,
-    context: vscode.ExtensionContext,
-    originalFile: vscode.Uri,
-    tempFile: vscode.Uri,
-    hash: string
-  ): Promise<boolean> {
-    this.isNextRequest = true;
-    this.originalFile = originalFile;
-    this.tempFile = tempFile;
-    this.context = context;
-    this.trace = [];
-    this.newHash = hash;
-    this.tracker = createDebugAdapterTracker(testing, trackerId, context, this.tempFile);
-    const debugSuccess = await vscode.debug.startDebugging(undefined, this.getDebugConfiguration(this.tempFile));
-    await this.initializeRequest();
-
-    return debugSuccess;
-  }
 
   /**
    * Makes various requests to the debugger to retrieve function, objects and simple variables to create a BackendTraceElem
@@ -81,7 +55,7 @@ export class BackendSession {
       const heapVariablesContent = await Promise.all(
         heapVariablesWithoutSpecial.map(async (variable) => {
           let refs = await this.variablesRequest(session, variable.variablesReference);
- // FIXME Nur 1 referenz mehr, weil 3 tupel, nur fürs experimentieren
+          // FIXME Nur 1 referenz mehr, weil 3 tupel, nur fürs experimentieren
           if (refs[refs.length - 1].variablesReference > 0) {
             refs = refs.concat(await this.variablesRequest(session, refs[refs.length - 1].variablesReference));
           }
@@ -169,12 +143,6 @@ export class BackendSession {
     });
   }
 
-  private static async initializeRequest(): Promise<Capabilities> {
-    return await vscode.debug.activeDebugSession?.customRequest('initialize', {
-      adapterID: 'python',
-    });
-  }
-
   // FIXME Refactor
   private static async variablesRequest(session: vscode.DebugSession, id: number): Promise<Array<Variable>> {
     return (
@@ -203,21 +171,5 @@ export class BackendSession {
         threadId: id,
       })
     ).stackFrames as Array<StackFrame>;
-  }
-
-  /**
-   * Returns a basic debug configuration
-   * @param file the file to be debugged
-   */
-  private static getDebugConfiguration(file: vscode.Uri) {
-    return {
-      name: `Debugging File`,
-      type: 'python',
-      request: 'launch',
-      program: file?.fsPath ?? `${file}`,
-      console: 'integratedTerminal',
-      stopOnEntry: true,
-      // logToFile: true, // Only activate if problems with debugger occur
-    };
   }
 }

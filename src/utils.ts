@@ -1,9 +1,11 @@
-import stringify from 'stringify-json';
 import * as vscode from 'vscode';
-import * as FileHandler from './backend/FileHandler';
-import { BackendSession } from './backend/backend_session';
-import { Variables } from './constants';
 import { VisualizationPanel } from './frontend/visualization_panel';
+
+/**
+ * Supported Languages for the 
+ */
+export enum Languages { 'python', 'java' };
+
 
 /**
  * Simply returns a array of all open text editors
@@ -191,76 +193,4 @@ export async function startFrontend(
   } else {
     await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
   }
-}
-
-/**
- * Register a debug adapter tracker factory for the given debug type.
- * It listens for stopped events and creates a BackendTraceElem in the Backend
- * When finished it starts the Frontend Visualization
- *
- * @returns A Disposable that unregisters this factory when being disposed.
- */
-export function createDebugAdapterTracker(
-  testing: boolean,
-  trackerId: string,
-  context: vscode.ExtensionContext,
-  tempFile: vscode.Uri
-): vscode.Disposable {
-
-  return vscode.debug.registerDebugAdapterTrackerFactory('python', {
-    createDebugAdapterTracker(session: vscode.DebugSession) {
-      return {
-        async onDidSendMessage(message) {
-          if (message.event === 'stopped' && message.body.reason !== 'exception') {
-            const threadId = message.body.threadId;
-            if (threadId) {
-              BackendSession.trace.push(await BackendSession.createBackendTraceElem(session, threadId));
-              // TODO: Check if Class get initialized and do a next instead of step in
-              if (BackendSession.isNextRequest) {
-                BackendSession.stepInRequest(session, threadId);
-              } else {
-                BackendSession.stepInRequest(session, threadId);
-              }
-            }
-          } else if (message.event === 'exception') {
-            // TODO: Create Viz from partial BackendTrace and add exeption into it if not already present
-            // vscode.debug.stopDebugging
-          }
-        },
-        async onExit(code, signal) {
-          // Call Frontend from here to start with trace
-          if (BackendSession.trace) {
-            if (getConfigValue<boolean>('outputBackendTrace')) {
-              await FileHandler.createBackendTraceOutput(BackendSession.trace, BackendSession.originalFile);
-            }
-            // Save Hash for file when debug was successful
-            await setContextState(
-              context,
-              Variables.HASH_KEY + BackendSession.originalFile.fsPath,
-              BackendSession.newHash
-            );
-            // Save the Backend Trace for later use
-            await setContextState(
-              context,
-              Variables.TRACE_KEY + BackendSession.originalFile.fsPath,
-              stringify(BackendSession.trace)
-            );
-
-            await FileHandler.deleteFile(tempFile);
-            // Show the original file again
-            // await showTextDocument(BackendSession.originalFile);
-            // Init frontend with the backend trace when not testing
-            if (!testing) {
-              const trace = await getContextState<string>(
-                context,
-                Variables.TRACE_KEY + BackendSession.originalFile.fsPath
-              );
-              await startFrontend(trackerId, context, trace);
-            }
-          }
-          BackendSession.tracker.dispose();
-        },
-      };
-    },
-  });
 }
