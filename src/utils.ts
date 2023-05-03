@@ -2,12 +2,6 @@ import * as vscode from 'vscode';
 import { VisualizationPanel } from './frontend/visualization_panel';
 
 /**
- * Supported Languages for the 
- */
-export enum Languages { 'python', 'java' };
-
-
-/**
  * Simply returns a array of all open text editors
  *
  * @returns an array of open vscode.TextEditor

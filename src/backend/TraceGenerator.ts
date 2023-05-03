@@ -2,7 +2,7 @@ import stringify from 'stringify-json';
 import { Disposable, ExtensionContext, Uri, debug, window } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
-import { Languages, getConfigValue, setContextState } from '../utils';
+import { getConfigValue, setContextState } from '../utils';
 import { getPythonDebugConfigurationFor, registerPythonDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
 
@@ -10,7 +10,7 @@ export class TraceGenerator {
     backendTrace: BackendTrace = [];
     file: Uri;
     private fileContent: string;
-    private language: Languages;
+    private language: SupportedLanguages;
     private context: ExtensionContext;
     private hash: string;
     traceIsFinished: boolean = false;
@@ -20,7 +20,7 @@ export class TraceGenerator {
         this.fileContent = fileContent;
         this.context = context;
         this.hash = hash;
-        this.language = Languages.python; // TODO language as argument
+        this.language = 'python'; // TODO language as argument
     }
 
     async generateTrace(): Promise<BackendTrace | undefined> {
@@ -34,7 +34,7 @@ export class TraceGenerator {
         // INIT DEBUGGER
         let debugAdapterTracker: Disposable | undefined;
         switch (this.language) {
-            case Languages.python:
+            case 'python':
                 debugAdapterTracker = registerPythonDebugAdapterTracker(this);
                 break;
             default:
@@ -82,7 +82,7 @@ async function showSpecificErrorMessage(message: string) {
     window.showErrorMessage(message);
 }
 
-async function initializeAdapterForActiveDebugSession(language: Languages): Promise<Capabilities> {
+async function initializeAdapterForActiveDebugSession(language: SupportedLanguages): Promise<Capabilities> {
     return await debug.activeDebugSession?.customRequest('initialize', {
         adapterID: language.toString,
     });

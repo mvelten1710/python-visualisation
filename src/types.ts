@@ -1,3 +1,8 @@
+/**
+ * Supported Languages for the Extension
+ */
+type SupportedLanguages = 'python' | 'java';
+
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
 type FrontendTraceElem = [number, string, string];
