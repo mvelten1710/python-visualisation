@@ -6,11 +6,7 @@ import {
 } from '../utils';
 import * as FileHandler from './FileHandler';
 import { TraceGenerator } from './TraceGenerator';
-
-const ERR_FILENAME_UNDEFINED = 'The passed filename variable was undefined!\nThe extension finished';
-const ERR_TRACE_GENERATE = "Error Python-Visualization: Backend Trace couldn't be generated!";
-const ERR_DEBUG_SESSION = 'Error Python-Visualization: Debug Session could not be started!\nStopping...';
-const ERR_INIT_FRONTEND = "Error Python-Visualization: Frontend couldn't be initialized!";
+import * as ErrorMessages from '../ErrorMessages';
 
 export async function initExtension(
   testing: boolean,
@@ -18,7 +14,7 @@ export async function initExtension(
   file: vscode.Uri | undefined
 ): Promise<BackendTrace | undefined> {
   if (!file) {
-    await showSpecificErrorMessage(ERR_FILENAME_UNDEFINED);
+    await showSpecificErrorMessage(ErrorMessages.ERR_FILENAME_UNDEFINED);
     return;
   }
 
@@ -30,7 +26,10 @@ export async function initExtension(
   const traceGenerator = new TraceGenerator(file, content, context, newHash);
   if (testing || oldHash !== newHash) {
     // TODO BackendTrace from generation, stringify maybe
-    await traceGenerator.generateTrace();
+    if (!await traceGenerator.generateTrace()) {
+      await showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE);
+      return;
+    }
   } else {
     // TODO BackendTrace from old, maybe with as BackendTrace 
   }
@@ -41,7 +40,7 @@ export async function initExtension(
       Variables.TRACE_KEY + file.fsPath
     );
     if (!trace) {
-      await vscode.window.showErrorMessage(ERR_INIT_FRONTEND);
+      await vscode.window.showErrorMessage(ErrorMessages.ERR_INIT_FRONTEND);
       return;
     }
 

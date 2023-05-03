@@ -23,12 +23,12 @@ export class TraceGenerator {
         this.language = Languages.python; // TODO language as argument
     }
 
-    async generateTrace(): Promise<BackendTrace> {
+    async generateTrace(): Promise<BackendTrace | undefined> {
         // PRE QUERIES
         const tempFile = await FileHandler.duplicateFileAndExtendWithPass(this.file, this.fileContent);
         if (!tempFile) {
             await showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE);
-            return [];
+            return;
         }
 
         // INIT DEBUGGER
@@ -39,11 +39,11 @@ export class TraceGenerator {
                 break;
             default:
                 await showSpecificErrorMessage(ErrorMessages.ERR_LANGUAGE);
-                break;
+                return;
         }
         if (!debugAdapterTracker) {
             await showSpecificErrorMessage(ErrorMessages.ERR_TRACKER_CREATION);
-            return [];
+            return;
         }
 
         await initializeAdapterForActiveDebugSession(this.language);
@@ -52,7 +52,7 @@ export class TraceGenerator {
         const debugSuccess = await debug.startDebugging(undefined, getPythonDebugConfigurationFor(tempFile));
         if (!debugSuccess) {
             await showSpecificErrorMessage(ErrorMessages.ERR_DEBUG_SESSION);
-            return [];
+            return;
         }
 
         await until(() => this.traceIsFinished);
