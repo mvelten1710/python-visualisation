@@ -1,10 +1,11 @@
 import stringify from 'stringify-json';
-import { Disposable, ExtensionContext, Uri, debug, window } from 'vscode';
+import { ExtensionContext, Uri, debug, window } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
 import { getConfigValue, setContextState } from '../utils';
-import { getPythonDebugConfigurationFor, registerPythonDebugAdapterTracker } from './DebugAdapterTracker';
+import { getPythonDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
+import Completer from '../Completer';
 
 export class TraceGenerator {
     backendTrace: BackendTrace = [];
@@ -32,20 +33,8 @@ export class TraceGenerator {
         }
 
         // INIT DEBUGGER
-        let debugAdapterTracker: Disposable | undefined;
-        switch (this.language) {
-            case 'python':
-                debugAdapterTracker = registerPythonDebugAdapterTracker(this);
-                break;
-            default:
-                await showSpecificErrorMessage(ErrorMessages.ERR_LANGUAGE);
-                return;
-        }
-        if (!debugAdapterTracker) {
-            await showSpecificErrorMessage(ErrorMessages.ERR_TRACKER_CREATION);
-            return;
-        }
-
+        const completer = new Completer<[number | undefined, string | undefined]>();
+        const debugAdapterTracker = registerDebugAdapterTracker(this, completer);
         await initializeAdapterForActiveDebugSession(this.language);
 
         // DEBUGGING
@@ -55,7 +44,7 @@ export class TraceGenerator {
             return;
         }
 
-        await until(() => this.traceIsFinished);
+        await completer.promise; // TODO use Exit Codes
 
         // FINISHING
         debugAdapterTracker.dispose();
@@ -87,8 +76,3 @@ async function initializeAdapterForActiveDebugSession(language: SupportedLanguag
         adapterID: language.toString,
     });
 }
-
-const until = (predFn: () => any) => {
-    const poll: (done: any) => any = (done) => (predFn() ? done() : setTimeout(() => poll(done), 500));
-    return new Promise(poll);
-};

@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import { TraceGenerator } from './TraceGenerator';
 import { BackendSession } from './backend_session';
+import Completer from '../Completer';
 
-export function registerPythonDebugAdapterTracker(
-    traceGenerator: TraceGenerator
+export function registerDebugAdapterTracker(
+    traceGenerator: TraceGenerator, completer: Completer<[number | undefined, string | undefined]>
 ): vscode.Disposable {
-    return vscode.debug.registerDebugAdapterTrackerFactory('python', {
+    return vscode.debug.registerDebugAdapterTrackerFactory('python' /* TODO this.language */, {
         createDebugAdapterTracker(session: vscode.DebugSession) {
             return {
                 async onDidSendMessage(message) {
@@ -26,8 +27,7 @@ export function registerPythonDebugAdapterTracker(
                     }
                 },
                 async onExit(code, signal) {
-                    // TODO Handle code and signal
-                    traceGenerator.traceIsFinished = true;
+                    completer.complete([code, signal]);
                 },
             };
         },
