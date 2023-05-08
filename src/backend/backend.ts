@@ -7,6 +7,7 @@ import {
 import * as FileHandler from './FileHandler';
 import { TraceGenerator } from './TraceGenerator';
 import * as ErrorMessages from '../ErrorMessages';
+import stringify from 'stringify-json';
 
 export async function initExtension(
   testing: boolean,
@@ -24,30 +25,32 @@ export async function initExtension(
   const trackerId = `${newHash}#${file.fsPath}`;
 
   const traceGenerator = new TraceGenerator(file, content, context, newHash);
+  let trace: string | undefined;
+  let backendTrace: BackendTrace | undefined;
+
   if (testing || oldHash !== newHash) {
-    // TODO BackendTrace from generation, stringify maybe
-    if (!await traceGenerator.generateTrace()) {
+    backendTrace = await traceGenerator.generateTrace();
+    if (!backendTrace) {
       await showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE);
       return;
     }
+    trace = stringify(backendTrace);
   } else {
-    // TODO BackendTrace from old, maybe with as BackendTrace 
-  }
-
-  if (!testing) {
-    const trace = await getContextState<string>(
+    trace = await getContextState<string>(
       context,
       Variables.TRACE_KEY + file.fsPath
     );
-    if (!trace) {
-      await vscode.window.showErrorMessage(ErrorMessages.ERR_INIT_FRONTEND);
-      return;
-    }
+  }
+  if (!trace) {
+    await vscode.window.showErrorMessage(ErrorMessages.ERR_INIT_FRONTEND);
+    return;
+  }
 
+  if (!testing) {
     await startFrontend(trackerId, context, trace); // TODO trace as BackendTrace not string
   }
 
-  return traceGenerator.backendTrace;
+  return backendTrace;
 }
 
 async function showSpecificErrorMessage(message: string) {
