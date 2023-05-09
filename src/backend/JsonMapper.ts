@@ -1,5 +1,5 @@
 export function validJsonFor(type: HeapType, value: string): string {
-    let isActuallyString = false;
+    let isActuallyString = false; // FIXME numbers with . not working
     return value.replace(/None|'|(\(|\))|(\{|\})|[0-9]+|(True|False)/g, (substring, _) => {
         switch (substring) {
             case 'None':
