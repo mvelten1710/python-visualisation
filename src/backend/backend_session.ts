@@ -2,12 +2,6 @@ import * as vscode from 'vscode';
 import * as VariableMapper from "./VariableMapper";
 
 export class BackendSession {
-  static originalFile: vscode.Uri;
-  static tempFile: vscode.Uri;
-  static context: vscode.ExtensionContext;
-  static trace: BackendTrace = [];
-  static tracker: vscode.Disposable;
-  static newHash: string;
   static isNextRequest: boolean;
 
   /**
@@ -21,13 +15,12 @@ export class BackendSession {
     session: vscode.DebugSession,
     threadId: number
   ): Promise<BackendTraceElem> {
-    // Extract line and scopeName from current StackFrame
     const stackFrames = await this.stackTraceRequest(session, threadId);
-    const line = stackFrames[0].line;
-    const stackHeap = await this.createStackAndHeap(session, stackFrames);
 
-    // Get everything together to return a BackendTraceElem
-    return this.createBackendTraceElemFrom(line, stackHeap);
+    const [stack, heap] = await this.createStackAndHeap(session, stackFrames);
+
+    const line = stackFrames[0].line;
+    return this.createBackendTraceElemFrom(line, stack, heap);
   }
 
   private static async createStackAndHeap(
@@ -39,11 +32,12 @@ export class BackendSession {
 
     for (let i = 0; i < stackFrames.length; i++) {
       const scopes = await this.scopesRequest(session, stackFrames[i].id);
-      let allVariables = await this.variablesRequest(session, scopes[0].variablesReference);
+      const [locals, globals] = [scopes[0], scopes[1]]; // TODO global scope usage?
+      const localsVariables = await this.variablesRequest(session, locals.variablesReference);
 
-      const primitiveVariables = allVariables.filter((variable) => variable.variablesReference === 0);
+      const primitiveVariables = localsVariables.filter((variable) => variable.variablesReference === 0);
 
-      const heapVariablesWithoutSpecial = allVariables.filter(
+      const heapVariablesWithoutSpecial = localsVariables.filter(
         (variable) =>
           variable.variablesReference > 0 &&
           variable.name !== 'class variables' &&
@@ -51,21 +45,27 @@ export class BackendSession {
           variable.name !== 'self'
       );
 
-      // FIXME wrong output 
       const heapVariablesContent = await Promise.all(
         heapVariablesWithoutSpecial.map(async (variable) => {
-          let refs = await this.variablesRequest(session, variable.variablesReference);
-          // FIXME Nur 1 referenz mehr, weil 3 tupel, nur fürs experimentieren
-          if (refs[refs.length - 1].variablesReference > 0) {
-            refs = refs.concat(await this.variablesRequest(session, refs[refs.length - 1].variablesReference));
-          }
+          let refs: Variable[] = [];
+          let listForDepth = [variable];
+
+          do {
+            const variablesReference = listForDepth.pop()?.variablesReference;
+            if (variablesReference) {
+              const newRefs = await this.variablesRequest(session, variablesReference);
+              refs = refs.concat(newRefs.filter((variable) => (variable.type !== 'str' && !variable.value.includes('...')) || variable.type === 'str'));
+              listForDepth = listForDepth.concat(newRefs.filter((variable) => (variable.type !== 'str' && variable.value.includes('...')) || variable.variablesReference !== 0));
+            }
+          } while (listForDepth.length > 0);
+
           return refs;
         })
       );
 
-      const specialVariables = (
+      const specialVariables = ( // TODO möglich nur heapVariables weil selber call bis jetzt außer flat()
         await Promise.all(
-          allVariables
+          localsVariables
             .filter(
               (variable) =>
                 variable.variablesReference > 0 &&
@@ -78,7 +78,8 @@ export class BackendSession {
       ).flat();
 
       const heapVariables = heapVariablesContent.concat([specialVariables]);
-      allVariables = [...primitiveVariables, ...heapVariablesWithoutSpecial, ...specialVariables];
+
+      const allVariables = [...primitiveVariables, ...heapVariablesWithoutSpecial, ...specialVariables];
 
       stack.push(this.createStackElemFrom(stackFrames[i], allVariables));
 
@@ -99,11 +100,11 @@ export class BackendSession {
     return [stack, heap];
   }
 
-  private static createBackendTraceElemFrom(line: number, stackHeap: any): BackendTraceElem {
+  private static createBackendTraceElemFrom(line: number, stack: Array<StackElem>, heap: Map<number, HeapValue>): BackendTraceElem {
     return {
       line: line,
-      stack: stackHeap[0],
-      heap: stackHeap[1],
+      stack: stack,
+      heap: heap,
     };
   }
 
@@ -122,13 +123,13 @@ export class BackendSession {
   private static async getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession, heapVariables: Variable[][]): Promise<Map<number, HeapValue>> {
     return await variables
       .filter((v) => v.variablesReference > 0)
-      .reduce(async (acc, cv, index) => {
-        const result = await VariableMapper.toHeapValue(session, cv, heapVariables[index]);
-        heapVars = result[1].reduce((acc, cv) => {
-          return acc.set(cv.ref, { type: cv.type, value: cv.value } as HeapValue);
+      .reduce(async (acc, variable, index) => {
+        const result = await VariableMapper.toHeapValue(session, variable, heapVariables[index]);
+        heapVars = result[1].reduce((acc, variable) => {
+          return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
         }, heapVars);
-        return (await acc).set(cv.variablesReference, result[0]);
-      }, Promise.resolve(heap));
+        return (await acc).set(variable.variablesReference, result[0]);
+      }, Promise.resolve(heap)); // TODO Promise.resolve checken
   }
 
   public static async stepInRequest(session: vscode.DebugSession, threadId: number) {
@@ -143,7 +144,6 @@ export class BackendSession {
     });
   }
 
-  // FIXME Refactor
   private static async variablesRequest(session: vscode.DebugSession, id: number): Promise<Array<Variable>> {
     return (
       (

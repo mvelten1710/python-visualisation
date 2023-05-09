@@ -68,10 +68,10 @@ type Scope = {
   variablesReference: number;
 };
 type Variable = {
-  id: string;
+  evaluateName: string;
   name: string;
-  value: string;
   type: string;
+  value: string;
   variablesReference: number;
 };
 

@@ -6,7 +6,7 @@ suite('A VariableMapper when', () => {
     describe("mapping a variable toValue", function () {
         it("should return correct int Value type when int is given", function () {
             const testVariable: Variable = {
-                id: "",
+                evaluateName: "",
                 name: "",
                 value: "1",
                 type: "int",
@@ -21,7 +21,7 @@ suite('A VariableMapper when', () => {
 
         it("should return correct float Value type when float is given", function () {
             const testVariable: Variable = {
-                id: "",
+                evaluateName: "",
                 name: "",
                 value: "1",
                 type: "float",
@@ -36,7 +36,7 @@ suite('A VariableMapper when', () => {
 
         it("should return correct NoneType Value type when None is given", function () {
             const testVariable: Variable = {
-                id: "",
+                evaluateName: "",
                 name: "",
                 value: "None",
                 type: "NoneType",
@@ -51,7 +51,7 @@ suite('A VariableMapper when', () => {
 
         it("should return correct string Value type when string is given", function () {
             const testVariable: Variable = {
-                id: "",
+                evaluateName: "",
                 name: "",
                 value: "Im a string",
                 type: "str",
@@ -66,7 +66,7 @@ suite('A VariableMapper when', () => {
 
         it("should return correct bool Value type when bool is given", function () {
             const testVariable: Variable = {
-                id: "",
+                evaluateName: "",
                 name: "",
                 value: "true",
                 type: "bool",
