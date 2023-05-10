@@ -37,7 +37,7 @@ suite('A JSONMapper when', () => {
 
             const result = JsonMapper.validJsonFor(type, testValue);
 
-            assert.equal(result, '{"one": "1","two": "2","three": "3"}');
+            assert.equal(result, '{"one": 1,"two": 2,"three": 3}');
         });
     });
 });
