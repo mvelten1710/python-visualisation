@@ -39,8 +39,9 @@ export async function toHeapValue(
 ): Promise<[HeapValue, Array<RawHeapValue>]> {
     switch (variable.type) {
         case 'tuple':
-        case 'list':
             return createHeapValueForTuple(variableContent, variable);
+        case 'list':
+            return createHeapValueForList(variableContent, variable);
         case 'set':
             return createHeapValueForSet(variableContent, variable);
         case 'dict':
@@ -70,8 +71,73 @@ export function createHeapValueForTuple(variableContent: Variable[], variable: V
         const hasReference = elem.variablesReference > 0;
         const heapElem = toValue(elem);
         const depth = (elem.evaluateName.match(/\[/g) || []).length - 1;
-        let index = Number(elem.evaluateName.replace(/[\w]*/, '').replace(/[\[\]]*/g, '').charAt(depth - 1 >= 0 ? depth - 1 : 0));
+        const indexes = elem.evaluateName.replace(/[\w]*/, '').replace(/[\[\]]*/g, '');
         const variableIsInBottomLayer = depth === 0;
+        const index = variableIsInBottomLayer ? 0 :  parseInt(indexes.slice(0, indexes.length - 1), 2);
+        const ownIndex = parseInt(indexes, 2);
+
+        if (variableIsInBottomLayer && !hasReference) {
+            return heapElem;
+        } else if (variableIsInBottomLayer && hasReference) {
+            if (rawHeapValues[depth] === undefined) {
+                rawHeapValues[depth] = new Array<RawHeapValue>();
+                alreadyUpdated[depth] = new Array<boolean>();
+            }
+            rawHeapValues[depth][ownIndex] = rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value);
+            return heapElem;
+        } else if (!variableIsInBottomLayer && !hasReference) {
+            if (rawHeapValues[depth - 1] === undefined) {
+                rawHeapValues[depth - 1] = new Array<RawHeapValue>();
+                alreadyUpdated[depth - 1] = new Array<boolean>();
+            }
+            if (alreadyUpdated[depth - 1][index]) {
+                const heapVValue = rawHeapValues[depth - 1][index].value;
+                (heapVValue as Array<Value>).push(heapElem);
+                rawHeapValues[depth - 1][index].value = heapVValue;
+            } else {
+                if (rawHeapValues[depth - 1][index]) {
+                    rawHeapValues[depth - 1][index].value = Array.of(heapElem);
+                    alreadyUpdated[depth - 1][index] = true;
+                }
+            }
+        } else if (!variableIsInBottomLayer && hasReference) {
+            if (rawHeapValues[depth] === undefined) {
+                rawHeapValues[depth] = new Array<RawHeapValue>();
+                alreadyUpdated[depth] = new Array<boolean>();
+            }
+            rawHeapValues[depth][ownIndex] = rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value);
+            if (rawHeapValues[depth - 1][index]) {
+                const heapVValue = rawHeapValues[depth - 1][index].value;
+                (heapVValue as Array<Value>).push(heapElem);
+                rawHeapValues[depth - 1][index].value = alreadyUpdated[depth - 1][index] ? heapVValue : Array.of(heapElem);
+                alreadyUpdated[depth - 1][index] = true;
+            }
+        }
+
+        return undefined;
+    }).filter((variable) => variable !== undefined);
+
+    return [
+        {
+            type: variable.type,
+            value: list,
+        },
+        rawHeapValues.flat(),
+    ] as [HeapValue, Array<RawHeapValue>];
+}
+
+export function createHeapValueForList(variableContent: Variable[], variable: Variable): [HeapValue, Array<RawHeapValue>] {
+    let rawHeapValues = new Array<RawHeapValue[]>();
+    let alreadyUpdated = new Array<boolean[]>();
+
+    const list = variableContent.map((elem) => {
+        const hasReference = elem.variablesReference > 0;
+        const heapElem = toValue(elem);
+        const depth = (elem.evaluateName.match(/\[/g) || []).length - 1;
+        const indexes = elem.evaluateName.replace(/[\w]*/, '').replace(/[\[\]]*/g, '');
+        const variableIsInBottomLayer = depth === 0;
+        const index = Number(indexes.charAt(variableIsInBottomLayer ? 0 : depth - 1));
+        const ownIndex = Number(indexes.charAt(indexes.length - 1));
 
         if (variableIsInBottomLayer && !hasReference) {
             return heapElem;
@@ -102,7 +168,7 @@ export function createHeapValueForTuple(variableContent: Variable[], variable: V
                 rawHeapValues[depth] = new Array<RawHeapValue>();
                 alreadyUpdated[depth] = new Array<boolean>();
             }
-            rawHeapValues[depth][index] = rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value);
+            rawHeapValues[depth][ownIndex] = rawToHeapValue(elem.variablesReference, elem.type as HeapType, elem.value);
             if (rawHeapValues[depth - 1][index]) {
                 const heapVValue = rawHeapValues[depth - 1][index].value;
                 (heapVValue as Array<Value>).push(heapElem);
@@ -206,6 +272,9 @@ export function rawToHeapValue(address: Address, type: HeapType, value: string):
 }
 
 export function stringToObject(type: HeapType, value: string): HeapV {
+    if (value.includes("...")) {
+        return Array.of({ type: 'str', value: JSON.stringify(value) });
+    }
     const temp = JSON.parse(JsonMapper.validJsonFor(type, value));
     switch (type) {
         case 'list':

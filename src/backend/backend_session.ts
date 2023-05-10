@@ -50,12 +50,12 @@ export class BackendSession {
           let refs: Variable[] = [];
           let listForDepth = [variable];
 
-          do { // FIXME fehlen referenzen: fancyStackedTuples = ((1, (2, 3)), (4, ((5, 6), 7)))
+          do {
             const variablesReference = listForDepth.pop()?.variablesReference;
             if (variablesReference) {
               const newRefs = await this.variablesRequest(session, variablesReference);
-              refs = refs.concat(newRefs.filter((variable) => (variable.type !== 'str' && !variable.value.includes('...')) || variable.type === 'str'));
-              listForDepth = listForDepth.concat(newRefs.filter((variable) => (variable.type !== 'str' && variable.value.includes('...')) || variable.variablesReference !== 0));
+              refs = refs.concat(newRefs);
+              listForDepth = listForDepth.concat(newRefs.filter((variable) => variable.variablesReference !== 0));
             }
           } while (listForDepth.length > 0);
 
