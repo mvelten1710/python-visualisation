@@ -6,7 +6,7 @@ import Completer from '../Completer';
 export function registerDebugAdapterTracker(
     traceGenerator: TraceGenerator, completer: Completer<[number | undefined, string | undefined]>
 ): vscode.Disposable {
-    return vscode.debug.registerDebugAdapterTrackerFactory('python' /* TODO this.language */, {
+    return vscode.debug.registerDebugAdapterTrackerFactory('python' /* TODO traceGenerator.language */, {
         createDebugAdapterTracker(session: vscode.DebugSession) {
             return {
                 async onDidSendMessage(message) {
