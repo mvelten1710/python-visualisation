@@ -86,7 +86,11 @@ export class BackendSession {
       const isLastFrame = i === stackFrames.length - 1;
       if (isLastFrame) {
         let heapVars = new Map<Address, HeapValue>();
-        heap = await this.getHeapOf(allVariables, heap, heapVars, session, heapVariables);
+        // heap = await this.getHeapOf(allVariables, heap, heapVars, session, heapVariables);
+
+        heap = await this.getSimpleHeapOf(allVariables, heap, heapVars, session);
+        
+
 
         // Get all variableRefs from heapvalues in other heap values
         // Check if every variableRef is in the heap if not take the variableRef's value and put it into the heap
@@ -99,6 +103,91 @@ export class BackendSession {
     }
     return [stack, heap];
   }
+
+  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
+    let rawHeapValues = new Array<RawHeapValue>();
+    let list = new Array<Value>();
+    if (!variable) {
+      return;
+    }
+    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+
+    do {
+      const actualVariable = listForDepth.pop();
+      if (actualVariable) {
+        const variablesReference = actualVariable.variablesReference;
+        if (variablesReference) {
+          const elem = await this.createInnerHeapVariable(actualVariable, session);
+          rawHeapValues = rawHeapValues.concat(elem);
+        }
+        list.splice(0, 0, VariableMapper.toValue(actualVariable));
+
+      }
+    } while (listForDepth.length > 0);
+
+    return [
+      {
+        type: variable.type,
+        value: list,
+      },
+      rawHeapValues,
+    ] as [HeapValue, Array<RawHeapValue>];
+  }
+
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession) {
+    let rawHeapValues = new Array<RawHeapValue>();
+    let heapValue: HeapV | undefined = undefined;
+
+    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+    do {
+      const actualVariable = listForDepth.pop();
+      if (actualVariable) {
+        const variablesReference = actualVariable.variablesReference;
+        if (variablesReference) {
+          const elem = await this.createInnerHeapVariable(actualVariable, session);
+          rawHeapValues = rawHeapValues.concat(elem);
+        } 
+
+        heapValue = this.updateHeapV(variable, heapValue, VariableMapper.toValue(actualVariable));
+      }
+    } while (listForDepth.length > 0);
+
+    return rawHeapValues.concat( {
+      ref: variable.variablesReference,
+      type: variable.type,
+      value: heapValue
+    } as RawHeapValue);
+  }
+
+  private static updateHeapV(variable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
+    switch (variable.type) {
+      case 'list':
+      case 'tuple':
+      default:
+        if (actualHeapV) {
+          (actualHeapV as Array<Value>).splice(0, 0, value);
+          return actualHeapV;
+        } else {
+          return Array.of(value);
+        }
+    }
+  }
+
+  private static async getSimpleHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<number, HeapValue>> {
+    return await variables
+      .filter((v) => v.variablesReference > 0)
+      .reduce(async (acc, variable) => {
+        const result = await this.createHeapVariable(variable, session);
+        if (result) {
+          heapVars = result[1].reduce((acc, variable) => {
+            return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
+          }, heapVars);
+          return (await acc).set(variable.variablesReference, result[0]);
+        }
+        return acc;
+      }, Promise.resolve(heap)); // TODO Promise.resolve checken
+  }
+
 
   private static createBackendTraceElemFrom(line: number, stack: Array<StackElem>, heap: Map<number, HeapValue>): BackendTraceElem {
     return {
