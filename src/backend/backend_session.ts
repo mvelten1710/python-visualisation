@@ -32,7 +32,7 @@ export class BackendSession {
 
     for (let i = 0; i < stackFrames.length; i++) {
       const scopes = await this.scopesRequest(session, stackFrames[i].id);
-      const [locals, globals] = [scopes[0], scopes[1]]; // TODO global scope usage?
+      const [locals, globals] = [scopes[0], scopes[1]];
       const localsVariables = await this.variablesRequest(session, locals.variablesReference);
 
       const primitiveVariables = localsVariables.filter((variable) => variable.variablesReference === 0);
@@ -45,39 +45,18 @@ export class BackendSession {
           variable.name !== 'self'
       );
 
-      const heapVariablesContent = await Promise.all(
-        heapVariablesWithoutSpecial.map(async (variable) => {
-          let refs: Variable[] = [];
-          let listForDepth = [variable];
-
-          do {
-            const variablesReference = listForDepth.pop()?.variablesReference;
-            if (variablesReference) {
-              const newRefs = await this.variablesRequest(session, variablesReference);
-              refs = refs.concat(newRefs);
-              listForDepth = listForDepth.concat(newRefs.filter((variable) => variable.variablesReference !== 0));
-            }
-          } while (listForDepth.length > 0);
-
-          return refs;
-        })
-      );
-
-      const specialVariables = ( // TODO möglich nur heapVariables weil selber call bis jetzt außer flat()
+      const specialVariables = (
         await Promise.all(
           localsVariables
             .filter(
               (variable) =>
                 variable.variablesReference > 0 &&
                 (variable.name === 'class variables' || variable.name === 'function variables')
-            )
-            .map(async (variable) => {
+            ).map(async (variable) => {
               return await this.variablesRequest(session, variable.variablesReference);
             })
         )
       ).flat();
-
-      const heapVariables = heapVariablesContent.concat([specialVariables]);
 
       const allVariables = [...primitiveVariables, ...heapVariablesWithoutSpecial, ...specialVariables];
 
@@ -85,15 +64,11 @@ export class BackendSession {
 
       const isLastFrame = i === stackFrames.length - 1;
       if (isLastFrame) {
+        // TODO better styling and getting already full heap back
         let heapVars = new Map<Address, HeapValue>();
-        // heap = await this.getHeapOf(allVariables, heap, heapVars, session, heapVariables);
 
-        heap = await this.getSimpleHeapOf(allVariables, heap, heapVars, session);
-        
+        heap = await this.getHeapOf(allVariables, heap, heapVars, session);
 
-
-        // Get all variableRefs from heapvalues in other heap values
-        // Check if every variableRef is in the heap if not take the variableRef's value and put it into the heap
         heapVars.forEach((value, key) => {
           if (!heap.has(key)) {
             heap.set(key, value);
@@ -104,76 +79,7 @@ export class BackendSession {
     return [stack, heap];
   }
 
-  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
-    let rawHeapValues = new Array<RawHeapValue>();
-    let list = new Array<Value>();
-    if (!variable) {
-      return;
-    }
-    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
-
-    do {
-      const actualVariable = listForDepth.pop();
-      if (actualVariable) {
-        const variablesReference = actualVariable.variablesReference;
-        if (variablesReference) {
-          const elem = await this.createInnerHeapVariable(actualVariable, session);
-          rawHeapValues = rawHeapValues.concat(elem);
-        }
-        list.splice(0, 0, VariableMapper.toValue(actualVariable));
-
-      }
-    } while (listForDepth.length > 0);
-
-    return [
-      {
-        type: variable.type,
-        value: list,
-      },
-      rawHeapValues,
-    ] as [HeapValue, Array<RawHeapValue>];
-  }
-
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession) {
-    let rawHeapValues = new Array<RawHeapValue>();
-    let heapValue: HeapV | undefined = undefined;
-
-    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
-    do {
-      const actualVariable = listForDepth.pop();
-      if (actualVariable) {
-        const variablesReference = actualVariable.variablesReference;
-        if (variablesReference) {
-          const elem = await this.createInnerHeapVariable(actualVariable, session);
-          rawHeapValues = rawHeapValues.concat(elem);
-        } 
-
-        heapValue = this.updateHeapV(variable, heapValue, VariableMapper.toValue(actualVariable));
-      }
-    } while (listForDepth.length > 0);
-
-    return rawHeapValues.concat( {
-      ref: variable.variablesReference,
-      type: variable.type,
-      value: heapValue
-    } as RawHeapValue);
-  }
-
-  private static updateHeapV(variable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
-    switch (variable.type) {
-      case 'list':
-      case 'tuple':
-      default:
-        if (actualHeapV) {
-          (actualHeapV as Array<Value>).splice(0, 0, value);
-          return actualHeapV;
-        } else {
-          return Array.of(value);
-        }
-    }
-  }
-
-  private static async getSimpleHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<number, HeapValue>> {
+  private static async getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<number, HeapValue>> {
     return await variables
       .filter((v) => v.variablesReference > 0)
       .reduce(async (acc, variable) => {
@@ -188,6 +94,89 @@ export class BackendSession {
       }, Promise.resolve(heap)); // TODO Promise.resolve checken
   }
 
+  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
+    let rawHeapValues = new Array<RawHeapValue>();
+    const isClass = variable.type === 'type';
+    const isClassOrDict = isClass || variable.type === 'dict';
+    let list = isClassOrDict ? new Map<string, Value>() : new Array<Value>();
+    if (!variable) { // TODO better checking somewhere
+      return;
+    }
+    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+
+    do {
+      const [actualVariable, ...remainingVariables] = listForDepth;
+      const variablesReference = actualVariable.variablesReference;
+
+      if (variablesReference) {
+        const elem = await this.createInnerHeapVariable(actualVariable, session);
+        rawHeapValues = rawHeapValues.concat(elem);
+      }
+
+      isClassOrDict
+        ? (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
+        : (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
+
+      listForDepth = remainingVariables;
+    } while (listForDepth.length > 0);
+
+    return [
+      {
+        type: isClass ? 'class' : variable.type,
+        value: isClass ? { className: variable.name, properties: list } : list,
+      },
+      rawHeapValues,
+    ] as [HeapValue, Array<RawHeapValue>];
+  }
+
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession): Promise<RawHeapValue[]> {
+    let rawHeapValues = new Array<RawHeapValue>();
+    let heapValue: HeapV | undefined = undefined;
+    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+
+    do {
+      const [actualVariable, ...remainingVariables] = listForDepth;
+      const variablesReference = actualVariable.variablesReference;
+
+      if (variablesReference) {
+        const elem = await this.createInnerHeapVariable(actualVariable, session);
+        rawHeapValues = rawHeapValues.concat(elem);
+      }
+
+      heapValue = this.getUpdateForHeapV(variable, heapValue, VariableMapper.toValue(actualVariable));
+
+      listForDepth = remainingVariables;
+    } while (listForDepth.length > 0);
+
+    return rawHeapValues.concat({
+      ref: variable.variablesReference,
+      type: variable.type,
+      value: heapValue
+    } as RawHeapValue);
+  }
+
+  private static getUpdateForHeapV(variable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
+    switch (variable.type) {
+      case 'list':
+      case 'tuple':
+      case 'set':
+        return actualHeapV
+          ? (actualHeapV as Array<Value>).concat(value)
+          : Array.of(value);
+      case 'dict':
+        return actualHeapV
+          ? (actualHeapV as Map<any, Value>).set(value.value, value)
+          : new Map<any, Value>().set(value.value, value);
+      case 'class':
+        return { className: '', properties: new Map<string, Value>() };
+      case 'type':
+        return actualHeapV
+          ? (actualHeapV as Map<string, Value>).set(variable.name, value)
+          : new Map<string, Value>().set(variable.name, value);
+      default:
+        return Array.of(value);
+    }
+  }
 
   private static createBackendTraceElemFrom(line: number, stack: Array<StackElem>, heap: Map<number, HeapValue>): BackendTraceElem {
     return {
@@ -207,18 +196,6 @@ export class BackendSession {
         })
       ),
     };
-  }
-
-  private static async getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession, heapVariables: Variable[][]): Promise<Map<number, HeapValue>> {
-    return await variables
-      .filter((v) => v.variablesReference > 0)
-      .reduce(async (acc, variable, index) => {
-        const result = await VariableMapper.toHeapValue(session, variable, heapVariables[index]);
-        heapVars = result[1].reduce((acc, variable) => {
-          return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
-        }, heapVars);
-        return (await acc).set(variable.variablesReference, result[0]);
-      }, Promise.resolve(heap)); // TODO Promise.resolve checken
   }
 
   public static async stepInRequest(session: vscode.DebugSession, threadId: number) {
