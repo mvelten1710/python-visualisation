@@ -95,17 +95,22 @@ export class BackendSession {
   }
 
   private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
+    if (!variable) { // TODO better checking somewhere
+      return;
+    }
     let rawHeapValues = new Array<RawHeapValue>();
     const isClass = variable.type === 'type';
     const isClassOrDict = isClass || variable.type === 'dict';
     let list = isClassOrDict ? new Map<string, Value>() : new Array<Value>();
-    if (!variable) { // TODO better checking somewhere
-      return;
-    }
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
 
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
+      listForDepth = remainingVariables;
+
+      if (!actualVariable) {
+        break;
+      }
       const variablesReference = actualVariable.variablesReference;
 
       if (variablesReference) {
@@ -116,8 +121,6 @@ export class BackendSession {
       isClassOrDict
         ? (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
         : (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
-
-      listForDepth = remainingVariables;
     } while (listForDepth.length > 0);
 
     return [
@@ -129,7 +132,7 @@ export class BackendSession {
     ] as [HeapValue, Array<RawHeapValue>];
   }
 
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession): Promise<RawHeapValue[]> {
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, oldVariableReference?: number): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
@@ -137,9 +140,10 @@ export class BackendSession {
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
       const variablesReference = actualVariable.variablesReference;
+      let isInLoop = !variablesReference || variablesReference === variable.variablesReference || (oldVariableReference && variablesReference === oldVariableReference); // FIXME Tortoise and Hare Algorithmus -> pointer algorithm that uses only two pointers, which move through the sequence at different speeds
 
-      if (variablesReference) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session);
+      if (!isInLoop) {
+        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.variablesReference);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
