@@ -14,9 +14,7 @@ suite('A VariableMapper when', () => {
             };
 
             const result = VariableMapper.toValue(testVariable);
-
-            assert.equal(result.type, 'int');
-            assert.equal(result.value, 1);
+            assert.deepEqual(result, { type: 'int', value: 1 });
         });
 
         it("should return correct float Value type when float is given", function () {
@@ -30,8 +28,8 @@ suite('A VariableMapper when', () => {
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.equal(result.type, 'float');
-            assert.equal(result.value, 1);
+            assert.deepEqual(result, { type: 'float', value: 1 });
+
         });
 
         it("should return correct NoneType Value type when None is given", function () {
@@ -45,8 +43,7 @@ suite('A VariableMapper when', () => {
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.equal(result.type, 'str');
-            assert.equal(result.value, "None");
+            assert.deepEqual(result, { type: 'str', value: "None" });
         });
 
         it("should return correct string Value type when string is given", function () {
@@ -60,8 +57,7 @@ suite('A VariableMapper when', () => {
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.equal(result.type, 'str');
-            assert.equal(result.value, "Im a string");
+            assert.deepEqual(result, { type: 'str', value: "Im a string" });
         });
 
         it("should return correct bool Value type when bool is given", function () {
@@ -75,8 +71,7 @@ suite('A VariableMapper when', () => {
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.equal(result.type, 'bool');
-            assert.equal(result.value, "true");
+            assert.deepEqual(result, { type: 'bool', value: "true" });
         });
     });
 });
