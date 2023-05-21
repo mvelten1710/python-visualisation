@@ -14,21 +14,22 @@ export class TraceGenerator {
     private language: SupportedLanguages;
     private context: ExtensionContext;
     private hash: string;
-    traceIsFinished: boolean = false;
+    private inTestingState: boolean;
 
-    constructor(file: Uri, fileContent: string, context: ExtensionContext, hash: string) {
+    constructor(file: Uri, fileContent: string, context: ExtensionContext, hash: string, inTestingState: boolean) {
         this.file = file;
         this.fileContent = fileContent;
         this.context = context;
         this.hash = hash;
         this.language = 'python'; // TODO language as argument
+        this.inTestingState = inTestingState;
     }
 
     async generateTrace(): Promise<BackendTrace | undefined> {
         // PRE QUERIES
         const tempFile = await FileHandler.duplicateFileAndExtendWithPass(this.file, this.fileContent);
         if (!tempFile) {
-            await showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE);
+            await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE, this.inTestingState);
             return;
         }
 
@@ -40,7 +41,7 @@ export class TraceGenerator {
         // DEBUGGING
         const debugSuccess = await debug.startDebugging(undefined, getPythonDebugConfigurationFor(tempFile));
         if (!debugSuccess) {
-            await showSpecificErrorMessage(ErrorMessages.ERR_DEBUG_SESSION);
+            await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_DEBUG_SESSION, this.inTestingState);
             return;
         }
 
@@ -65,10 +66,6 @@ export class TraceGenerator {
 
         return this.backendTrace;
     }
-}
-
-async function showSpecificErrorMessage(message: string) {
-    window.showErrorMessage(message);
 }
 
 async function initializeAdapterForActiveDebugSession(language: SupportedLanguages): Promise<Capabilities> {

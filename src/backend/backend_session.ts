@@ -83,21 +83,17 @@ export class BackendSession {
     return await variables
       .filter((v) => v.variablesReference > 0)
       .reduce(async (acc, variable) => {
+        if (!variable) { return acc; }
         const result = await this.createHeapVariable(variable, session);
-        if (result) {
-          heapVars = result[1].reduce((acc, variable) => {
-            return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
-          }, heapVars);
-          return (await acc).set(variable.variablesReference, result[0]);
-        }
-        return acc;
-      }, Promise.resolve(heap)); // TODO Promise.resolve checken
+        if (!result) { return acc; }
+        heapVars = result[1].reduce((acc, variable) => {
+          return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
+        }, heapVars);
+        return (await acc).set(variable.variablesReference, result[0]);
+      }, Promise.resolve(heap));
   }
 
-  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
-    if (!variable) { // TODO better checking somewhere
-      return;
-    }
+  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession, circleSet: Set<Variable> = new Set<Variable>) {
     let rawHeapValues = new Array<RawHeapValue>();
     const isClass = variable.type === 'type';
     const isClassOrDict = isClass || variable.type === 'dict';
@@ -114,7 +110,7 @@ export class BackendSession {
       const variablesReference = actualVariable.variablesReference;
 
       if (variablesReference) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session);
+        const elem = await this.createInnerHeapVariable(actualVariable, session, circleSet, variable.type);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
@@ -132,7 +128,23 @@ export class BackendSession {
     ] as [HeapValue, Array<RawHeapValue>];
   }
 
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, oldVariableReference?: number): Promise<RawHeapValue[]> {
+  private static hasLoop(type: string, variable: Variable, circleSet: Set<Variable>): boolean {
+    let isInLoop = false;
+    if (circleSet.has(variable)) {
+      return true;
+    }
+    circleSet.forEach((it) => {
+      let equals = variable.name === it.name && variable.type === it.type && variable.variablesReference === it.variablesReference && variable.value === it.value && (variable.evaluateName && it.evaluateName || !variable.evaluateName && !it.evaluateName);
+      if (type === 'dict') {
+        equals = variable.evaluateName && it.evaluateName ? equals && variable.evaluateName.replace(/[\w]*/, '') === it.evaluateName.replace(/[\w]*/, '') : false;
+      }
+
+      if (equals) { isInLoop = true; }
+    });
+    return isInLoop;
+  }
+
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, circleSet: Set<Variable>, initialType: string): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
@@ -140,10 +152,15 @@ export class BackendSession {
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
       const variablesReference = actualVariable.variablesReference;
-      let isInLoop = !variablesReference || variablesReference === variable.variablesReference || (oldVariableReference && variablesReference === oldVariableReference); // FIXME Tortoise and Hare Algorithmus -> pointer algorithm that uses only two pointers, which move through the sequence at different speeds
 
-      if (!isInLoop) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.variablesReference);
+      if (this.hasLoop(initialType, actualVariable, circleSet)) {
+        break;
+      }
+
+      circleSet.add(actualVariable);
+
+      if (variablesReference) {
+        const elem = await this.createInnerHeapVariable(actualVariable, session, circleSet, initialType);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
@@ -169,8 +186,8 @@ export class BackendSession {
           : Array.of(value);
       case 'dict':
         return actualHeapV
-          ? (actualHeapV as Map<any, Value>).set(value.value, value)
-          : new Map<any, Value>().set(value.value, value);
+          ? (actualHeapV as Map<any, Value>).set(value.value /* FIXME if ie a tuple is key its not mapped */, value)
+          : new Map<any, Value>().set(value.value /* FIXME if ie a tuple is key its not mapped */, value);
       case 'class':
         return { className: '', properties: new Map<string, Value>() };
       case 'type':

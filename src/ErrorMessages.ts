@@ -11,3 +11,10 @@ export const ERR_FILENAME_UNDEFINED = 'The passed filename variable was undefine
 export const ERR_TRACE_GENERATE = "Error Python-Visualization: Backend Trace couldn't be generated!";
 
 export const ERR_INIT_FRONTEND = "Error Python-Visualization: Frontend couldn't be initialized!";
+
+import { window } from 'vscode';
+export async function showSpecificErrorMessage(message: string, inTestingState: boolean) {
+    if (!inTestingState) {
+        await window.showErrorMessage(message);
+    }
+}

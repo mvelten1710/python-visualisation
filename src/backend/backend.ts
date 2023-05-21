@@ -10,12 +10,12 @@ import * as ErrorMessages from '../ErrorMessages';
 import stringify from 'stringify-json';
 
 export async function initExtension(
-  testing: boolean,
+  inTestingState: boolean,
   context: vscode.ExtensionContext,
   file: vscode.Uri | undefined
 ): Promise<BackendTrace | undefined> {
   if (!file) {
-    await showSpecificErrorMessage(ErrorMessages.ERR_FILENAME_UNDEFINED);
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_FILENAME_UNDEFINED, inTestingState);
     return;
   }
 
@@ -24,14 +24,14 @@ export async function initExtension(
   const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
   const trackerId = `${newHash}#${file.fsPath}`;
 
-  const traceGenerator = new TraceGenerator(file, content, context, newHash);
+  const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState);
   let trace: string | undefined;
   let backendTrace: BackendTrace | undefined;
 
-  if (testing || oldHash !== newHash) {
+  if (inTestingState || oldHash !== newHash) {
     backendTrace = await traceGenerator.generateTrace();
     if (!backendTrace) {
-      await showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE);
+      await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE, inTestingState);
       return;
     }
     trace = stringify(backendTrace);
@@ -42,17 +42,13 @@ export async function initExtension(
     );
   }
   if (!trace) {
-    await vscode.window.showErrorMessage(ErrorMessages.ERR_INIT_FRONTEND);
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_INIT_FRONTEND, inTestingState);
     return;
   }
 
-  if (!testing) {
+  if (!inTestingState) {
     await startFrontend(trackerId, context, trace); // TODO trace as BackendTrace not string
   }
 
   return backendTrace;
-}
-
-async function showSpecificErrorMessage(message: string) {
-  vscode.window.showErrorMessage(message);
 }
