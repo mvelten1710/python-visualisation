@@ -2,23 +2,13 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { Commands } from '../../constants';
 import path = require('path');
-import { after, describe, it } from 'mocha';
+import { after, before, describe, it } from 'mocha';
 import * as fs from 'fs';
 import { TESTFILE_DIR, TestExecutionHelper } from './TestExecutionHelper';
+import * as TestFileContents from './TestFileContents';
 
 const TENTY_SECONDS = 20000;
-const singleVariable = `age = 10`;
-const primitiveVariablesInitialization =
-  `
-myPositiveInteger = 100
-myNegativeInteger = -420
 
-myPositiveFloat = 60.9
-myNegativeFloat = -42.3
-
-myString = 'Hello World'
-myEmptyString = ''
-`;
 const primitiveVariablesBasicOperations =
   `
 myPositiveInteger = 10
@@ -58,98 +48,114 @@ suite('The Backend when', () => {
     });
   });
 
-  /** Basic functionality
-   * Creates a Trace
-   * Tace contains correct input
-   * Deletes tmp-Files like <name>_debug
-   */
-  describe("creating a simple Trace", function () {
-    it("should create a Trace", async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableTrace", "py", singleVariable);
-      if (!testFile) {
-        this.skip();
-      }
+  describe("creating a Trace with all primitive Variables", function () {
+    this.timeout(TENTY_SECONDS);
 
-      const result = await executeExtension(testFile);
+    let result: BackendTrace | undefined;
+    this.beforeAll(async function () {
+      const testFile = await TestExecutionHelper.createTestFileWith("allPrimitiveVariables", "py", TestFileContents.ALL_PRIMITIVE_VARIABLES);
 
+      result = await executeExtension(testFile);
+    });
+
+    it("should create a defined Backend Trace", () => {
       assert.ok(result);
-    }).timeout(TENTY_SECONDS);
+    });
 
-    it("should contains with one Variable in File one BackendTrace-Element", async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableContains", "py", singleVariable);
-      if (!testFile) {
-        this.skip();
-      }
+    const variables: Array<[string, string, number | string]> = [
+      ['positiveInt', 'int', 1],
+      ['negativeInt', 'int', -1],
+      ['positiveFloat', 'float', 1.0],
+      ['negativeFloat', 'float', -1.0],
+      ['emptyString', 'str', "''"],
+      ['fullString', 'str', "'Hello World!'"],
+      ['isNone', 'str', 'None'],
+      ['trueBool', 'bool', 'True'],
+      ['falseBool', 'bool', 'False']
+    ];
+    variables.forEach(([name, type, value], index) => {
+      it(`should contain the variable ${name} as ${type} with value ${value}`, () => {
+        if (!result) {
+          assert.fail("No result was generated!");
+        }
 
-      const result = await executeExtension(testFile);
+        assert.deepEqual(result.at(index)?.stack[0].locals.get(name), undefined);
+        assert.deepEqual(result.at(index + 1)?.stack[0].locals.get(name), { type: type, value: value });
+        assert.deepEqual(result.at(-1)?.stack[0].locals.get(name), { type: type, value: value });
+      });
+    });
+  });
 
+  describe('working with list', function () {
+    this.timeout(TENTY_SECONDS);
+
+    let result: BackendTrace | undefined;
+    this.beforeAll(async function () {
+      const testFile = await TestExecutionHelper.createTestFileWith("lists", "py", TestFileContents.LISTS);
+
+      result = await executeExtension(testFile);
+    });
+
+    it("should create a defined Backend Trace", () => {
+      assert.ok(result);
+    });
+
+    const variables: Array<[string, string, any, number]> = [
+      ['simpleList', 'list', '[1, 2, 3, 4, 5]', 1],
+      ['stackedList', 'list', '[1, 2, [4, 5], [6, [7, 8, 9], [[10, 11], [23]]], 7]', 8],
+      ['stackedMixedList', 'list', '[1, 2.0, ["4", 5.2], ["6", ["7", "8"], 9, [["10", 11.11], ["12"]]], "13", 14]', 15],
+
+    ];
+    variables.forEach(([name, type, value, size], index) => {
+      it(`should contain the variable ${name} as ${type} with value ${value}`, () => {
+        if (!result) {
+          assert.fail("No result was generated!");
+        }
+
+        assert.deepEqual(result.at(index)?.stack[0].locals.get(name), undefined);
+        assert.deepEqual(result.at(index + 1)?.stack[0].locals.get(name)?.type, 'ref');
+        assert.deepEqual(result.at(-1)?.stack[0].locals.get(name)?.type, 'ref');
+
+        assert.deepEqual(result.at(index + 1)?.heap.size, size);
+      });
+    });
+  });
+});
+
+describe('working with tuple', function () {
+  this.timeout(TENTY_SECONDS);
+
+  let result: BackendTrace | undefined;
+  this.beforeAll(async function () {
+    const testFile = await TestExecutionHelper.createTestFileWith("tuples", "py", TestFileContents.TUPLES);
+
+    result = await executeExtension(testFile);
+  });
+
+  it("should create a defined Backend Trace", () => {
+    assert.ok(result);
+  });
+
+  const variables: Array<[string, string, any, number]> = [
+    ['simpleTuple', 'tuple', '(1, 2)', 1],
+    ['stackedTuples', 'tuple', '((1, (2, 3)), (4, 5))', 5],
+    ['stackedMixedTuples', 'tuple', '((1, ("2", 3)), (4.5, ((5, None), "7"))), "13", 14]', 11],
+
+  ];
+  variables.forEach(([name, type, value, size], index) => {
+    it(`should contain the variable ${name} as ${type} with value ${value}`, () => {
       if (!result) {
         assert.fail("No result was generated!");
       }
 
-      assert.equal(result.length, 2);
-      assert.equal(result[0].stack[0].locals.size, 0);
-      assert.equal(result[0].heap.size, 0);
-      assert.equal(result[1].stack[0].locals.get("age")?.type, 'int');
-      assert.equal(result[1].stack[0].locals.get("age")?.value, 10);
-      assert.equal(result[1].heap.size, 0);
-    }).timeout(TENTY_SECONDS);
+      assert.deepEqual(result.at(index)?.stack[0].locals.get(name), undefined);
+      assert.deepEqual(result.at(index + 1)?.stack[0].locals.get(name)?.type, 'ref');
+      assert.deepEqual(result.at(-1)?.stack[0].locals.get(name)?.type, 'ref');
 
-    it("should deletes temporary created Files", async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("singleVariableDelete", "py", singleVariable);
-      if (!testFile) {
-        this.skip();
-      }
-
-      await executeExtension(testFile);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      fs.readdir(path.join(TESTFILE_DIR, `/singleVariableDelete/`), (err, fileNames: string[]) => {
-        if (err) { throw err; }
-        assert.ok(!fileNames.includes("singleVariableDelete_debug.py"));
-      });
-    }).timeout(TENTY_SECONDS);
+      assert.deepEqual(result.at(index + 1)?.heap.size, size);
+    });
   });
-
-  /** Primitive Variables
-   * Tests the initialization of primitive types.
-   * Tests the basic operation of primitive types.
-   */
-  describe('working with primitive variables', function () {
-    it('should state all types correctly', async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("primitiveVariablesInitialization", "py", primitiveVariablesInitialization);
-      if (!testFile) {
-        this.skip();
-      }
-
-      const result = await executeExtension(testFile);
-
-      assert.ok(result);
-    }).timeout(TENTY_SECONDS);
-
-    it('Basic Operations', async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("primitiveVariablesBasicOperations", "py", primitiveVariablesBasicOperations);
-      if (!testFile) {
-        this.skip();
-      }
-
-      const result = await executeExtension(testFile);
-
-      assert.ok(result);
-    }).timeout(TENTY_SECONDS);
-  });
-
-  /** Collection Types
-   * Tests the initialization for collection types.
-   * Tests the basic operations of collection types
-   * Tests the collections with collections in them
-   */
-
-  /**
-   * Tests that the execution time is not too long
-   */
 });
-
 /** helper functions 
  * All helper Functions
  * TODO could be in in extra class 'ExecutionHelper' when more than this one tests exists

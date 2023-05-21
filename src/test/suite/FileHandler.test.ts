@@ -8,7 +8,7 @@ import path = require('path');
 import util = require('util');
 
 suite('A FileHandler when', () => {
-    after(() => { // da zwei mal könnte fehler geben, 2 directory maybe
+    after(() => {
         fs.rm(TESTFILE_DIR, { recursive: true }, err => {
             if (err) { throw err; }
         });
