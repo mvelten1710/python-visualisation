@@ -1,15 +1,13 @@
 import * as vscode from 'vscode';
-import path = require('path');
+import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
 import {
   backendToFrontend,
   createDecorationOptions,
-  getActiveEditor,
-  getContextState,
-  getOpenEditors,
-  setContextState,
-  showTextDocument,
+  getOpenEditors
 } from '../utils';
-import { Variables, currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
+import path = require('path');
+
+const FRONTEND_RESOURCE_PATH = 'src/frontend/resources';
 
 export class VisualizationPanel {
   private _panel: vscode.WebviewPanel | undefined;
@@ -23,19 +21,19 @@ export class VisualizationPanel {
     this._trace = trace.map(backendToFrontend);
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
-      'python-visualisation',
+      'python-visualization',
       'Code Visualization',
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
-        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources'))],
+        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH))],
       }
     );
 
     // Get path to resource on disk
-    const stylesFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.css'));
-    const scriptFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'webview.js'));
-    const lineFile = vscode.Uri.file(path.join(context.extensionPath, 'src/frontend/resources', 'leader-line.min.js'));
+    const stylesFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'webview.css'));
+    const scriptFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'webview.js'));
+    const lineFile = vscode.Uri.file(path.join(context.extensionPath, FRONTEND_RESOURCE_PATH, 'leader-line.min.js'));
     // And get the special URI to use with the webview
     this._style = panel.webview.asWebviewUri(stylesFile);
     this._script = panel.webview.asWebviewUri(scriptFile);
@@ -57,12 +55,16 @@ export class VisualizationPanel {
       context.subscriptions
     );
 
+    // TODO irgendwas mit api dass fenster switched dann aufhören zu vizzen und dann wieder back active wenn wieder das hier aktiv ist
+
     // Message Receivers
     this._panel.webview.onDidReceiveMessage(
       (msg) => {
         switch (msg.command) {
           case 'onClick':
             return this.onClick(msg.type);
+          case 'onSlide':
+            return this.onSlide(msg.sliderValue);
         }
       },
       undefined,
@@ -93,7 +95,6 @@ export class VisualizationPanel {
           <script src="${this._script}"></script>
           <script src="${this._lineScript}"></script>
           <title>Code Visualization</title>
-          
       </head>
       <body class="scrollable" onload="onLoad()">
         <div class="column scrollable" id="viz">
@@ -109,12 +110,8 @@ export class VisualizationPanel {
           </div>
           <div class="row">
             <div class="column floating-left" id="frames">
-            
-            
             </div>
             <div class="column floating-right" id="objects">
-          
-          
             </div>
           </div>
         </div>
@@ -126,9 +123,18 @@ export class VisualizationPanel {
           <div class="next-line-color"></div>
           <b class="margin-horizontal">Next line to be executed</b>
         </div>
+        <div class="slidecontainer">
+          <input type="range" min="0" max="${this._trace.length - 1}" value="${this._traceIndex}" class="slider" id="traceSlider" oninput="onSlide(this.value)">
+        </div>
+        <div class="row margin-vertical">
+          <p>Step&nbsp;</p>
+          <p id="indexCounter">0</p>
+          <p>/${this._trace.length - 1}</p>
+        </div>
         <div class="row margin-vertical">
           <button class="margin-horizontal" id="prevButton" type="button" onclick="onClick('prev')">Prev</button>
           <button class="margin-horizontal" id="nextButton" type="button" onclick="onClick('next')">Next</button>
+          <button class="margin-horizontal" id="lastButton" type="button" onclick="onClick('last')">Last</button>
         </div>
       </body>
       </html>
@@ -138,39 +144,67 @@ export class VisualizationPanel {
   private updateLineHighlight(remove: boolean = false) {
     // Can be undefined if no editor has focus
     // FIXME: Better editor selection for line highlighting
-    const editor = getOpenEditors();
-    if (editor.length === 1) {
-      if (remove) {
-        editor[0].setDecorations(nextLineExecuteHighlightType, []);
-        editor[0].setDecorations(currentLineExecuteHighlightType, []);
-      } else {
-        const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
-        const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+    const openEditors = getOpenEditors();
+    if (openEditors.length !== 1) { return; }
+    const editor = openEditors[0];
 
-        nextLine > -1
-          ? editor[0].setDecorations(
-              nextLineExecuteHighlightType,
-              createDecorationOptions(
-                new vscode.Range(new vscode.Position(nextLine, 0), new vscode.Position(nextLine, 999))
-              )
-            )
-          : undefined;
-        currentLine > -1
-          ? editor[0].setDecorations(
-              currentLineExecuteHighlightType,
-              createDecorationOptions(
-                new vscode.Range(new vscode.Position(currentLine, 0), new vscode.Position(currentLine, 999))
-              )
-            )
-          : undefined;
-      }
+    if (remove) {
+      editor.setDecorations(nextLineExecuteHighlightType, []);
+      editor.setDecorations(currentLineExecuteHighlightType, []);
+    } else {
+      this.setNextLineHighlighting(editor);
+      this.setCurrentLineHighlighting(editor);
     }
   }
 
+  private setCurrentLineHighlighting(editor: vscode.TextEditor) {
+    const currentLine = this._traceIndex > 0 ? this._trace[this._traceIndex - 1][0] - 1 : -1;
+
+    if (currentLine > -1) {
+      this.setEditorDecorations(editor, currentLineExecuteHighlightType, currentLine);
+    }
+  }
+
+  private setNextLineHighlighting(editor: vscode.TextEditor) {
+    const nextLine = this._traceIndex !== this._trace.length - 1 ? this._trace[this._traceIndex][0] - 1 : -1;
+
+    if (nextLine > -1) {
+      this.setEditorDecorations(editor, nextLineExecuteHighlightType, nextLine);
+    }
+  }
+
+  private setEditorDecorations(editor: vscode.TextEditor, highlightType: vscode.TextEditorDecorationType, line: number) {
+    editor.setDecorations(
+      highlightType,
+      createDecorationOptions(
+        new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999))
+      )
+    );
+  }
+
   private async onClick(type: string) {
-    type === 'next' ? ++this._traceIndex : --this._traceIndex;
+    this.updateTraceIndex(type);
     await this.postMessagesToWebview('updateButtons', 'updateContent');
     this.updateLineHighlight();
+  }
+
+  private async onSlide(sliderValue: number) {
+    this._traceIndex = Number(sliderValue);
+    await this.postMessagesToWebview('updateButtons', 'updateContent');
+    this.updateLineHighlight();
+  }
+
+  private updateTraceIndex(actionType: string) {
+    switch (actionType) {
+      case 'next': ++this._traceIndex;
+        break;
+      case 'prev': --this._traceIndex;
+        break;
+      case 'last': this._traceIndex = this._trace.length - 1;
+        break;
+      default:
+        break;
+    }
   }
 
   private async postMessagesToWebview(...args: string[]) {
@@ -179,16 +213,19 @@ export class VisualizationPanel {
         case 'updateButtons':
           const nextActive = this._traceIndex < this._trace.length - 1;
           const prevActive = this._traceIndex > 0;
+          const lastActive = this._traceIndex !== this._trace.length - 1;
           await this._panel!.webview.postMessage({
             command: 'updateButtons',
             next: nextActive,
             prev: prevActive,
+            last: lastActive,
           });
           break;
         case 'updateContent':
           await this._panel!.webview.postMessage({
             command: 'updateContent',
             traceElem: this._trace[this._traceIndex],
+            traceIndex: this._traceIndex,
           });
           break;
       }

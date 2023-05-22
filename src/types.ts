@@ -1,3 +1,8 @@
+/**
+ * Supported Languages for the Extension
+ */
+type SupportedLanguages = 'python' | 'java';
+
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
 type FrontendTraceElem = [number, string, string];
@@ -63,10 +68,10 @@ type Scope = {
   variablesReference: number;
 };
 type Variable = {
-  id: string;
+  evaluateName: string;
   name: string;
-  value: string;
   type: string;
+  value: string;
   variablesReference: number;
 };
 

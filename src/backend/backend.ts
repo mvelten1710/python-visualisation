@@ -1,60 +1,59 @@
+import { Md5 } from 'ts-md5';
 import * as vscode from 'vscode';
-import { Commands, Variables } from '../constants';
+import { Variables } from '../constants';
 import {
-  createTempFileFromCurrentEditor as createTempFileFromContent,
-  generateMD5Hash,
-  getContextState,
-  getFileContent,
-  getOpenEditors,
-  setContextState,
-  startFrontend,
+  getContextState, startFrontend,
 } from '../utils';
-import { BackendSession } from './backend_session';
+import * as FileHandler from './FileHandler';
+import { TraceGenerator } from './TraceGenerator';
+import * as ErrorMessages from '../ErrorMessages';
+import stringify from 'stringify-json';
 
 export async function initExtension(
-  testing: boolean,
+  inTestingState: boolean,
   context: vscode.ExtensionContext,
   file: vscode.Uri | undefined
 ): Promise<BackendTrace | undefined> {
   if (!file) {
-    await vscode.window.showErrorMessage('The passed filename variable was undefined!\nThe extension finished');
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_FILENAME_UNDEFINED, inTestingState);
     return;
   }
-  const startedEditor = getOpenEditors().filter((editor) => editor.document.uri.fsPath === file.fsPath);
-  // Check if Main File could be saved and the program can continue
-  if (startedEditor.length > 0 && (await startedEditor[0].document.save())) {
-    // Get content of file to create temp file
-    const content = await getFileContent(file);
-    // Create new hash based on file content and old hash from previous run
-    const newHash = generateMD5Hash(content);
-    const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
 
-    // Based on the new Hash its decided if debugger is run or not
-    if (oldHash !== newHash) {
-      // Close currently focused editor
-      await vscode.commands.executeCommand(Commands.CLOSE_EDITOR);
-      const tempFileUri = await createTempFileFromContent(file, content);
-      tempFileUri
-        ? await generateBackendTrace(testing, context, file, tempFileUri, newHash)
-        : vscode.window.showErrorMessage("Error Python-Visualization: Backend Trace couldn't be generated!");
-    } else {
-      const trace = await getContextState<string>(context, Variables.TRACE_KEY + file.fsPath);
-      await startFrontend(testing, `${oldHash}#${file.fsPath}`, context, trace);
-    }
+  const content = await FileHandler.getContentOf(file);
+  const newHash = Md5.hashStr(content);
+  const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
+  const trackerId = `${newHash}#${file.fsPath}`;
+
+  const language = FileHandler.extractLanguage(file);
+  if (!language) {
+    ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_EVALUATE_LANGUAGE, inTestingState);
+    return;
   }
-  return;
-}
+  const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState, language);
+  let trace: string | undefined;
+  let backendTrace: BackendTrace | undefined;
 
-async function generateBackendTrace(
-  testing: boolean,
-  context: vscode.ExtensionContext,
-  originalFile: vscode.Uri,
-  tempFile: vscode.Uri,
-  hash: string
-): Promise<void> {
-  if (!(await BackendSession.startDebugging(testing, context, originalFile, tempFile, hash))) {
-    await vscode.window.showErrorMessage(
-      'Error Python-Visualization: Debug Session could not be started!\nStopping...'
+  if (inTestingState || oldHash !== newHash) {
+    backendTrace = await traceGenerator.generateTrace();
+    if (!backendTrace) {
+      await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE, inTestingState);
+      return;
+    }
+    trace = stringify(backendTrace);
+  } else {
+    trace = await getContextState<string>(
+      context,
+      Variables.TRACE_KEY + file.fsPath
     );
   }
+  if (!trace) {
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_INIT_FRONTEND, inTestingState);
+    return;
+  }
+
+  if (!inTestingState) {
+    await startFrontend(trackerId, context, trace); // TODO trace as BackendTrace not string
+  }
+
+  return backendTrace;
 }

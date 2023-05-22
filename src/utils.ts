@@ -1,62 +1,5 @@
 import * as vscode from 'vscode';
-import util = require('util');
-import path = require('path');
-import { Variables } from './constants';
-import { BackendSession } from './backend/backend_session';
-import { Md5 } from 'ts-md5';
-import stringify from 'stringify-json';
 import { VisualizationPanel } from './frontend/visualization_panel';
-
-/**
- *  Gets the uri for the currently opened workspace, if one is opened.
- *
- * @returns WorkspaceFolder | undefined If a workspace is open it returns the WorkspaceFolder Uri, if not undefined is returned
- */
-export function getWorkspaceUri(): vscode.Uri | undefined {
-  return vscode.workspace.workspaceFolders?.map((wsf) => wsf?.uri)[0];
-}
-
-export async function createBackendTraceOutput(backendTrace: BackendTrace, filePath: string) {
-  const fileName = path.basename(filePath).split('.')[0];
-  await vscode.workspace.fs.writeFile(
-    vscode.Uri.parse(vscode.workspace.workspaceFolders![0].uri.path + `/backend_trace_${fileName}.json`),
-    new util.TextEncoder().encode(stringify(backendTrace))
-  );
-}
-
-/**
- * Reads the file with the given uri and decodes the contens to a string and afterwards splits every line into a string array
- *
- * @param fileUri the uri of the file that needs to be retrieved
- * @returns the content of the file in a string array line by line
- */
-export async function getFileContent(fileUri: vscode.Uri): Promise<string> {
-  return new util.TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(fileUri));
-}
-
-/**
- * Creates a file based on the currently opened editor. If no editor or workspace is open,
- * no file can be created.
- *
- * @returns The uri of a temporarily created file or undefined
- */
-export async function createTempFileFromCurrentEditor(
-  file: vscode.Uri,
-  fileContent: string
-): Promise<vscode.Uri | undefined> {
-  // Create temp file with the content of the python file and add a 'pass' at the end
-  // to let the debugger evaluate the last statement of the file
-  // Create a temp file in the workspace and delete it afterwards
-  const workspaceUri = getWorkspaceUri();
-  if (workspaceUri) {
-    const fileName = path.basename(file.fsPath).split('.')[0];
-    const tempFileUri = vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`);
-    const utf8Content = new util.TextEncoder().encode(fileContent.concat('\npass'));
-    // Workspace is also opened, file can be written and path to file can be returned
-    await vscode.workspace.fs.writeFile(tempFileUri, utf8Content);
-    return tempFileUri;
-  }
-}
 
 /**
  * Simply returns a array of all open text editors
@@ -67,30 +10,12 @@ export function getOpenEditors(): readonly vscode.TextEditor[] {
   return vscode.window.visibleTextEditors;
 }
 
-/**
- * Simply returns the currenly focused TextEditor if one is focused, otherwise undefined
- *
- * @returns The currently focused vscode.TextEditor. If non is open or focused returns undefined
- */
-export function getActiveEditor(): vscode.TextEditor | undefined {
-  return vscode.window.activeTextEditor;
-}
-
 export function createDecorationOptions(range: vscode.Range): vscode.DecorationOptions[] {
   return [
     {
       range: range,
     },
   ];
-}
-
-export async function showTextDocument(file: vscode.Uri) {
-  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
-}
-
-export async function deleteTempFile(workspaceUri: vscode.Uri, file: vscode.Uri) {
-  const fileName = path.basename(file.fsPath).split('.')[0];
-  await vscode.workspace.fs.delete(vscode.Uri.joinPath(workspaceUri, `${fileName}_debug.py`));
 }
 
 /**
@@ -101,10 +26,6 @@ export async function deleteTempFile(workspaceUri: vscode.Uri, file: vscode.Uri)
  */
 export function getConfigValue<T>(configAttribute: string): T | undefined {
   return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttribute);
-}
-
-export function generateMD5Hash(content: string): string {
-  return Md5.hashStr(content);
 }
 
 // Read File -> Create Hash -> Save Hash -> Compare saved Hash with Hash from file directly -> If Hash is same use already generated Trace, If not start debugger
@@ -257,7 +178,6 @@ function frameSubItem(frameName: string, name: string, value: Value): string {
 }
 
 export async function startFrontend(
-  testing: boolean,
   id: string,
   context: vscode.ExtensionContext,
   trace: string | undefined
@@ -267,72 +187,4 @@ export async function startFrontend(
   } else {
     await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
   }
-}
-
-/**
- * Register a debug adapter tracker factory for the given debug type.
- * It listens for stopped events and creates a BackendTraceElem in the Backend
- * When finished it starts the Frontend Visualization
- *
- * @returns A Disposable that unregisters this factory when being disposed.
- */
-export function createDebugAdapterTracker(
-  testing: boolean,
-  id: string,
-  context: vscode.ExtensionContext
-): vscode.Disposable {
-  return vscode.debug.registerDebugAdapterTrackerFactory('python', {
-    createDebugAdapterTracker(session: vscode.DebugSession) {
-      return {
-        async onDidSendMessage(message) {
-          if (message.event === 'stopped' && message.body.reason !== 'exception') {
-            const threadId = message.body.threadId;
-            if (threadId) {
-              BackendSession.trace.push(await BackendSession.createBackendTraceElem(session, threadId));
-              // TODO: Check if Class get initialized and do a next instead of step in
-              if (BackendSession.isNextRequest) {
-                BackendSession.stepInRequest(session, threadId);
-              } else {
-                BackendSession.stepInRequest(session, threadId);
-              }
-            }
-          } else if (message.event === 'exception') {
-            // TODO: Create Viz from partial BackendTrace and add exeption into it if not already present
-          }
-        },
-        async onExit(code, signal) {
-          // Call Frontend from here to start with trace
-          if (BackendSession.trace) {
-            if (getConfigValue<boolean>('outputBackendTrace')) {
-              await createBackendTraceOutput(BackendSession.trace, BackendSession.tempFile!.path);
-            }
-            // Save Hash for file when debug was successful
-            await setContextState(
-              context,
-              Variables.HASH_KEY + BackendSession.originalFile.fsPath,
-              BackendSession.newHash
-            );
-            // Save the Backend Trace for later use
-            await setContextState(
-              context,
-              Variables.TRACE_KEY + BackendSession.originalFile.fsPath,
-              stringify(BackendSession.trace)
-            );
-
-            // Delete temp file
-            await deleteTempFile(getWorkspaceUri()!, BackendSession.originalFile);
-            // Show the original file again
-            await showTextDocument(BackendSession.originalFile);
-            // Init frontend with the backend trace
-            const trace = await getContextState<string>(
-              context,
-              Variables.TRACE_KEY + BackendSession.originalFile.fsPath
-            );
-            await startFrontend(testing, id, context, trace);
-          }
-          BackendSession.tracker.dispose();
-        },
-      };
-    },
-  });
 }
