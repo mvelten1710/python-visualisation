@@ -1,7 +1,7 @@
 {
-  "name": "python-visualization",
-  "displayName": "python-visualization",
-  "description": "This extension is visualizing the execution of python programs",
+  "name": "programflow-visualization",
+  "displayName": "ProgramFlow-Visualization",
+  "description": "This extension is visualizing the execution of programs like python or java",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.71.0"
@@ -10,14 +10,14 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:python-visualization.startDebugSession"
+    "onCommand:programflow-visualization.startDebugSession"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
       "title": "Python Visualization",
       "properties": {
-        "python-visualization.outputBackendTrace": {
+        "programflow-visualization.outputBackendTrace": {
           "type": "boolean",
           "default": false,
           "description": "Creates a file with backend Trace (for debugging purposes)"
@@ -26,23 +26,23 @@
     },
     "commands": [
       {
-        "command": "python-visualization.startDebugSession",
-        "title": "Python Visualization"
+        "command": "programflow-visualization.startDebugSession",
+        "title": "programflow-visualization"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "python-visualization.startDebugSession",
+          "command": "programflow-visualization.startDebugSession",
           "when": "(editorLangId == python && resourceExtname == .py) || (editorLangId == java &&resourceExtname == .java)",
-          "group": "pythonViz@0"
+          "group": "programflowViz@0"
         }
       ],
       "editor/title/run": [
         {
-          "command": "python-visualization.startDebugSession",
+          "command": "programflow-visualization.startDebugSession",
           "when": "resourceExtname == .py || resourceExtname == .java",
-          "group": "pythonViz@0"
+          "group": "programflowViz@0"
         }
       ]
     }

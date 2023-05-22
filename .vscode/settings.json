@@ -10,6 +10,6 @@
     "typescript.tsc.autoDetect": "off",
 
     // Outputs the backend trace into a file for debugging purposes
-    "python-visualization.outputBackendTrace": false,
+    "programflow-visualization.outputBackendTrace": false,
 
 }

@@ -21,8 +21,8 @@ export class VisualizationPanel {
     this._trace = trace.map(backendToFrontend);
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
-      'python-visualization',
-      'Code Visualization',
+      'programflow-visualization',
+      'Code Visualization', // TODO adjust name to original file name
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,

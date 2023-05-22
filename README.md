@@ -1,6 +1,6 @@
-# python-visualisation README
+# ProgramFlow-Visualization
 
-This is the README for your extension "python-visualisation". After writing up a brief description, we recommend including the following sections.
+This is the README for the extension "programflow-visualization"
 
 ## Features
 
@@ -16,7 +16,7 @@ For example if there is an image subfolder under your extension project workspac
 
 If you have any requirements or dependencies, add a section describing those and how to install and configure them.
 
-```npm install fp-ts```
+``npm install fp-ts``
 
 ## Extension Settings
 
@@ -49,7 +49,8 @@ Fixed issue #.
 
 Added features X, Y, and Z.
 
------------------------------------------------------------------------------------------------------------
+---
+
 ## Following extension guidelines
 
 Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
@@ -66,7 +67,7 @@ Ensure that you've read through the extensions guidelines and follow the best pr
 
 ### For more information
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
+* [Visual Studio Code&#39;s Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
 * [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
 **Enjoy!**

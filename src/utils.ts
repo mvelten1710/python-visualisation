@@ -25,7 +25,7 @@ export function createDecorationOptions(range: vscode.Range): vscode.DecorationO
  * @returns the value of the requested config string
  */
 export function getConfigValue<T>(configAttribute: string): T | undefined {
-  return vscode.workspace.getConfiguration('python-visualization').get<T>(configAttribute);
+  return vscode.workspace.getConfiguration('programflow-visualization').get<T>(configAttribute);
 }
 
 // Read File -> Create Hash -> Save Hash -> Compare saved Hash with Hash from file directly -> If Hash is same use already generated Trace, If not start debugger
@@ -185,6 +185,6 @@ export async function startFrontend(
   if (trace) {
     return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
   } else {
-    await vscode.window.showErrorMessage("Error Python-Visualization: Frontend couldn't be initialized!");
+    await vscode.window.showErrorMessage("Error ProgramFlow-Visualization: Frontend couldn't be initialized!");
   }
 }
