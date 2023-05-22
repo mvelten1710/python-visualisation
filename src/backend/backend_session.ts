@@ -153,7 +153,7 @@ export class BackendSession {
       const [actualVariable, ...remainingVariables] = listForDepth;
       const variablesReference = actualVariable.variablesReference;
 
-      if (this.hasLoop(initialType, actualVariable, circleSet)) {
+      if (this.hasLoop(initialType, actualVariable, circleSet)) { // FIXME leads to bugs, 2 pointer?
         break;
       }
 
