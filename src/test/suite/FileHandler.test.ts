@@ -93,4 +93,24 @@ suite('A FileHandler when', () => {
             });
         });
     });
+
+    describe("extractLanguage should evaluate the extension to supported language", function () {
+        it("when with python '.py' ending", async function () {
+            const testFileName = vscode.Uri.file("testFile.py");
+
+            const result = FileHandler.extractLanguage(testFileName);
+
+            assert.ok(result);
+            assert.equal(result, 'python');
+        });
+
+        it("when with python '.java' ending", async function () {
+            const testFileName = vscode.Uri.file("testFile.java");
+
+            const result = FileHandler.extractLanguage(testFileName);
+
+            assert.ok(result);
+            assert.equal(result, 'java');
+        });
+    });
 });

@@ -32,3 +32,14 @@ export async function createBackendTraceOutput(backendTrace: BackendTrace, file:
         new util.TextEncoder().encode(stringify(backendTrace))
     );
 }
+
+export function extractLanguage(file: vscode.Uri): SupportedLanguages | undefined {
+    switch (path.extname(file.fsPath)) {
+        case '.py':
+            return 'python';
+        case '.java':
+            return 'java';
+        default:
+            return undefined;
+    }
+}

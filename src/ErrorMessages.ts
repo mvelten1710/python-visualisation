@@ -12,6 +12,8 @@ export const ERR_TRACE_GENERATE = "Error Python-Visualization: Backend Trace cou
 
 export const ERR_INIT_FRONTEND = "Error Python-Visualization: Frontend couldn't be initialized!";
 
+export const ERR_EVALUATE_LANGUAGE = "Error Python-Visualization: The language of the file is not supported!";
+
 import { window } from 'vscode';
 export async function showSpecificErrorMessage(message: string, inTestingState: boolean) {
     if (!inTestingState) {

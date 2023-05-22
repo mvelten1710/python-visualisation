@@ -1,27 +1,27 @@
 import stringify from 'stringify-json';
-import { ExtensionContext, Uri, debug, window } from 'vscode';
+import { ExtensionContext, Uri, debug } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
 import { getConfigValue, setContextState } from '../utils';
-import { getPythonDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
+import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
 import Completer from '../Completer';
 
 export class TraceGenerator {
     backendTrace: BackendTrace = [];
     file: Uri;
+    language: SupportedLanguages;
     private fileContent: string;
-    private language: SupportedLanguages;
     private context: ExtensionContext;
     private hash: string;
     private inTestingState: boolean;
 
-    constructor(file: Uri, fileContent: string, context: ExtensionContext, hash: string, inTestingState: boolean) {
+    constructor(file: Uri, fileContent: string, context: ExtensionContext, hash: string, inTestingState: boolean, language: SupportedLanguages) {
         this.file = file;
         this.fileContent = fileContent;
         this.context = context;
         this.hash = hash;
-        this.language = 'python'; // TODO language as argument
+        this.language = language;
         this.inTestingState = inTestingState;
     }
 
@@ -39,7 +39,7 @@ export class TraceGenerator {
         await initializeAdapterForActiveDebugSession(this.language);
 
         // DEBUGGING
-        const debugSuccess = await debug.startDebugging(undefined, getPythonDebugConfigurationFor(tempFile));
+        const debugSuccess = await debug.startDebugging(undefined, getDebugConfigurationFor(tempFile, this.language));
         if (!debugSuccess) {
             await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_DEBUG_SESSION, this.inTestingState);
             return;

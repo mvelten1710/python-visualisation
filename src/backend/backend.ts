@@ -24,7 +24,12 @@ export async function initExtension(
   const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
   const trackerId = `${newHash}#${file.fsPath}`;
 
-  const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState);
+  const language = FileHandler.extractLanguage(file);
+  if (!language) {
+    ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_EVALUATE_LANGUAGE, inTestingState);
+    return;
+  }
+  const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState, language);
   let trace: string | undefined;
   let backendTrace: BackendTrace | undefined;
 

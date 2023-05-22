@@ -34,14 +34,14 @@
       "editor/context": [
         {
           "command": "python-visualization.startDebugSession",
-          "when": "editorLangId == python && resourceExtname == .py",
+          "when": "(editorLangId == python && resourceExtname == .py) || (editorLangId == java &&resourceExtname == .java)",
           "group": "pythonViz@0"
         }
       ],
       "editor/title/run": [
         {
           "command": "python-visualization.startDebugSession",
-          "when": "resourceExtname == .py",
+          "when": "resourceExtname == .py || resourceExtname == .java",
           "group": "pythonViz@0"
         }
       ]
