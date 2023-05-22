@@ -1,47 +1,14 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { Commands } from '../../constants';
-import path = require('path');
-import { after, before, describe, it } from 'mocha';
+import { after, describe, it } from 'mocha';
 import * as fs from 'fs';
 import { TESTFILE_DIR, TestExecutionHelper } from './TestExecutionHelper';
 import * as TestFileContents from './TestFileContents';
 
 const TENTY_SECONDS = 20000;
 
-const primitiveVariablesBasicOperations =
-  `
-myPositiveInteger = 10
-myNegativeInteger = -20
-
-myPositiveInteger = myPositiveInteger - myNegativeInteger
-myNegativeInteger = myNegativeInteger + myPositiveInteger
-myPositiveInteger = myNegativeInteger / 10.5
-myNegativeInteger = myNegativeInteger * 2.3
-
-myPositiveFloat = 60.9
-myNegativeFloat = -42.3
-
-myPositiveFloat = myPositiveFloat - myNegativeFloat
-myNegativeFloat = myNegativeFloat + myPositiveFloat
-myPositiveFloat = myNegativeFloat / 5
-myNegativeFloat = myNegativeFloat * 20.1
-
-
-myString = 'Hello'
-myEmptyString = ''
-
-myEmptyString = 'World'
-myString = myString + myEmptyString
-
-
-myTrueBoolean = True
-myFalseBoolean = False
-
-myTrueBoolean = myTrueBoolean - myFalseBoolean
-  `;
-
-suite('The Backend when', () => {
+suite('The Backend handling a python file when', () => {
   after(() => {
     fs.rm(TESTFILE_DIR, { recursive: true }, err => {
       if (err) { throw err; }
