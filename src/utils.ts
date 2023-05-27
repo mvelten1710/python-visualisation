@@ -93,18 +93,18 @@ function heapValue(name: string, heapValue: HeapValue): string {
         </div>
       `;
       break;
-    case 'list':
-    case 'tuple':
-      result = `
-        <div class="row" id="heapEndPointer${name}">
-          ${heapValue.value.map((v, i) => listValue(v, i)).join('')}
-        </div>
-      `;
-      break;
     case 'instance':
       result = `
         <div class="row" id="heapEndPointer${name}">
           ${heapValue.value} ${heapValue.type}
+        </div>
+      `;
+      break;
+    /* tuple, list, int[], int[][], ...*/
+    default:
+      result = `
+        <div class="row" id="heapEndPointer${name}">
+          ${heapValue.value.map((v, i) => listValue(v, i)).join('')}
         </div>
       `;
       break;

@@ -13,12 +13,15 @@ export function registerDebugAdapterTracker(
                     if (message.event === 'stopped' && message.body.reason !== 'exception') {
                         const threadId = message.body.threadId;
                         if (threadId) {
-                            traceGenerator.backendTrace.push(await BackendSession.createBackendTraceElem(session, threadId));
+                            const backendTraceElement = await BackendSession.createBackendTraceElem(session, threadId);
                             // TODO: Check if Class get initialized and do a next instead of step in
-                            if (BackendSession.isNextRequest) {
-                                BackendSession.stepInRequest(session, threadId);
+                            if (BackendSession.javaCodeIsFinished) {
+                                BackendSession.javaCodeIsFinished = false;
+                                completer.complete([0, 'signal']);
+                                continueRequest(session, threadId);
                             } else {
-                                BackendSession.stepInRequest(session, threadId);
+                                traceGenerator.backendTrace.push(backendTraceElement);
+                                stepInRequest(session, threadId);
                             }
                         }
                     } else if (message.event === 'exception') {
@@ -44,4 +47,16 @@ export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLa
         stopOnEntry: true,
         // logToFile: true, // Only activate if problems with debugger occur
     };
+}
+
+async function continueRequest(session: vscode.DebugSession, threadId: number) {
+    await session.customRequest('continue', {
+        threadId: threadId,
+    });
+}
+
+async function stepInRequest(session: vscode.DebugSession, threadId: number) {
+    await session.customRequest('stepIn', {
+        threadId: threadId,
+    });
 }

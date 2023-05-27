@@ -2,7 +2,7 @@ import stringify from 'stringify-json';
 import { ExtensionContext, Uri, debug } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
-import { getConfigValue, setContextState } from '../utils';
+import { setContextState } from '../utils';
 import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
 import Completer from '../Completer';
@@ -27,7 +27,7 @@ export class TraceGenerator {
 
     async generateTrace(): Promise<BackendTrace | undefined> {
         // PRE QUERIES
-        const tempFile = await FileHandler.duplicateFileAndExtendWithPass(this.file, this.fileContent);
+        const tempFile = this.language === 'python' ? await FileHandler.duplicateFileAndExtendWithPass(this.file, this.fileContent) : this.file;
         if (!tempFile) {
             await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE, this.inTestingState);
             return;
@@ -49,10 +49,8 @@ export class TraceGenerator {
 
         // FINISHING
         debugAdapterTracker.dispose();
-        await FileHandler.deleteFile(tempFile);
-        if (getConfigValue<boolean>('outputBackendTrace')) {
-            await FileHandler.createBackendTraceOutput(this.backendTrace, this.file);
-        }
+        if (this.language === 'python') { await FileHandler.deleteFile(tempFile); }
+        await FileHandler.createBackendTraceOutput(this.backendTrace, this.file);
         await setContextState(
             this.context,
             Variables.HASH_KEY + this.file.fsPath,

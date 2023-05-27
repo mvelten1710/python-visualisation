@@ -91,7 +91,7 @@ function updateRefArrows(traceElem) {
   }
 
   refTags.forEach((tag) => tag.remove());
-  refTags = tags.map((tag) => {
+  refTags = tags.filter((tag) => tag.elem1 && tag.elem2).map((tag) => {
     return new LeaderLine(tag.elem1, tag.elem2, {
       size: 2,
       path: "magnet",
@@ -118,7 +118,7 @@ function getCurrentTags(traceElem) {
   const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
 
   if (!normalTags) {
-    return [];
+    return;
   }
 
   let s = [];

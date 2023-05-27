@@ -20,6 +20,7 @@ type Primitive = number | string | boolean;
 type Address = number;
 
 type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class';
+// java: 'String[]' type
 type HeapV = Array<Value> | Map<any, Value> | ClassValue;
 
 type RawHeapValue = {
@@ -29,11 +30,18 @@ type RawHeapValue = {
 };
 
 type Value =
+  /* all languages */
   | { type: 'int'; value: number }
   | { type: 'float'; value: number }
   | { type: 'str'; value: string }
   | { type: 'bool'; value: string }
-  | { type: 'ref'; value: Address };
+  | { type: 'ref'; value: Address }
+  /* Java addition */
+  | { type: 'byte'; value: number }
+  | { type: 'short'; value: number }
+  | { type: 'long'; value: number }
+  | { type: 'double'; value: number };
+
 
 type StackElem = {
   frameName: string;

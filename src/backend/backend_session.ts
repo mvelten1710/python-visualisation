@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as VariableMapper from "./VariableMapper";
 
 export class BackendSession {
-  static isNextRequest: boolean;
+  static javaCodeIsFinished: boolean;
 
   /**
    * Makes various requests to the debugger to retrieve function, objects and simple variables to create a BackendTraceElem
@@ -35,14 +35,20 @@ export class BackendSession {
       const [locals, globals] = [scopes[0], scopes[1]];
       const localsVariables = await this.variablesRequest(session, locals.variablesReference);
 
-      const primitiveVariables = localsVariables.filter((variable) => variable.variablesReference === 0);
+      const primitiveVariables = localsVariables.filter((variable) =>
+        variable.variablesReference === 0 ||
+        /* Java specific */
+        variable.type === 'String'
+      );
 
       const heapVariablesWithoutSpecial = localsVariables.filter(
         (variable) =>
           variable.variablesReference > 0 &&
           variable.name !== 'class variables' &&
           variable.name !== 'function variables' &&
-          variable.name !== 'self'
+          variable.name !== 'self' &&
+          /* Java specific */
+          variable.type !== 'String'
       );
 
       const specialVariables = (
@@ -58,7 +64,8 @@ export class BackendSession {
         )
       ).flat();
 
-      const allVariables = [...primitiveVariables, ...heapVariablesWithoutSpecial, ...specialVariables];
+      const heapVariables = [...heapVariablesWithoutSpecial, ...specialVariables];
+      const allVariables = [...primitiveVariables, ...heapVariables];
 
       stack.push(this.createStackElemFrom(stackFrames[i], allVariables));
 
@@ -67,7 +74,7 @@ export class BackendSession {
         // TODO better styling and getting already full heap back
         let heapVars = new Map<Address, HeapValue>();
 
-        heap = await this.getHeapOf(allVariables, heap, heapVars, session);
+        heap = await this.getHeapOf(heapVariables, heap, heapVars, session);
 
         heapVars.forEach((value, key) => {
           if (!heap.has(key)) {
@@ -93,12 +100,17 @@ export class BackendSession {
       }, Promise.resolve(heap));
   }
 
-  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession, circleSet: Set<Variable> = new Set<Variable>) {
+  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
     let rawHeapValues = new Array<RawHeapValue>();
     const isClass = variable.type === 'type';
     const isClassOrDict = isClass || variable.type === 'dict';
     let list = isClassOrDict ? new Map<string, Value>() : new Array<Value>();
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+
+    if (variable.type === 'Thread') { /* Java specific */ // TODO check if main still in stack
+      this.javaCodeIsFinished = true;
+      return;
+    }
 
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
@@ -109,8 +121,8 @@ export class BackendSession {
       }
       const variablesReference = actualVariable.variablesReference;
 
-      if (variablesReference) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session, circleSet, variable.type);
+      if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
+        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.type);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
@@ -144,7 +156,7 @@ export class BackendSession {
     return isInLoop;
   }
 
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, circleSet: Set<Variable>, initialType: string): Promise<RawHeapValue[]> {
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, initialType: string, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
@@ -153,19 +165,17 @@ export class BackendSession {
       const [actualVariable, ...remainingVariables] = listForDepth;
       const variablesReference = actualVariable.variablesReference;
 
-      if (this.hasLoop(initialType, actualVariable, circleSet)) { // FIXME leads to bugs, 2 pointer?
-        break;
+      if (!visitedSet.has(variablesReference)) {
+        visitedSet.add(actualVariable.variablesReference);
+
+        if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
+          const elem = await this.createInnerHeapVariable(actualVariable, session, initialType, visitedSet);
+          rawHeapValues = rawHeapValues.concat(elem);
+        }
       }
-
-      circleSet.add(actualVariable);
-
-      if (variablesReference) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session, circleSet, initialType);
-        rawHeapValues = rawHeapValues.concat(elem);
-      }
-
+      
       heapValue = this.getUpdateForHeapV(variable, heapValue, VariableMapper.toValue(actualVariable));
-
+      
       listForDepth = remainingVariables;
     } while (listForDepth.length > 0);
 
@@ -195,6 +205,11 @@ export class BackendSession {
           ? (actualHeapV as Map<string, Value>).set(variable.name, value)
           : new Map<string, Value>().set(variable.name, value);
       default:
+        if (variable.type.includes("[]")) { // int[], float[], int[][]
+          return actualHeapV
+            ? (actualHeapV as Array<Value>).concat(value)
+            : Array.of(value);
+        }
         return Array.of(value);
     }
   }

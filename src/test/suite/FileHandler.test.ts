@@ -104,7 +104,7 @@ suite('A FileHandler when', () => {
             assert.equal(result, 'python');
         });
 
-        it("when with python '.java' ending", async function () {
+        it("when with java '.java' ending", async function () {
             const testFileName = vscode.Uri.file("testFile.java");
 
             const result = FileHandler.extractLanguage(testFileName);

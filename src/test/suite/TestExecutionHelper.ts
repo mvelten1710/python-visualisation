@@ -1,6 +1,7 @@
 import path = require('path');
 import * as vscode from 'vscode';
 import util = require('util');
+import { Commands } from '../../constants';
 
 export const TESTFILE_DIR: string = path.join(path.resolve(__dirname), "testfiles");
 
@@ -13,4 +14,8 @@ export class TestExecutionHelper {
 
         return testFileUri;
     }
+}
+
+export async function executeExtension(testFile: vscode.Uri): Promise<BackendTrace | undefined> {
+    return await vscode.commands.executeCommand(Commands.START_DEBUG, testFile, true);
 }

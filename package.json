@@ -1,6 +1,6 @@
 {
   "name": "programflow-visualization",
-  "displayName": "ProgramFlow-Visualization",
+  "displayName": "programflow-visualization",
   "description": "This extension is visualizing the execution of programs like python or java",
   "version": "0.0.1",
   "engines": {
@@ -34,7 +34,7 @@
       "editor/context": [
         {
           "command": "programflow-visualization.startDebugSession",
-          "when": "(editorLangId == python && resourceExtname == .py) || (editorLangId == java &&resourceExtname == .java)",
+          "when": "(editorLangId == python && resourceExtname == .py) || (editorLangId == java && resourceExtname == .java)",
           "group": "programflowViz@0"
         }
       ],

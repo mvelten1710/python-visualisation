@@ -26,7 +26,7 @@ export async function initExtension(
 
   const language = FileHandler.extractLanguage(file);
   if (!language) {
-    ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_EVALUATE_LANGUAGE, inTestingState);
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_EVALUATE_LANGUAGE, inTestingState);
     return;
   }
   const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState, language);
