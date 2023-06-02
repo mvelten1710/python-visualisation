@@ -100,12 +100,13 @@ export class BackendSession {
       }, Promise.resolve(heap));
   }
 
-  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession) {
+  private static async createHeapVariable(variable: Variable, session: vscode.DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
     let rawHeapValues = new Array<RawHeapValue>();
     const isClass = variable.type === 'type';
     const isClassOrDict = isClass || variable.type === 'dict';
     let list = isClassOrDict ? new Map<string, Value>() : new Array<Value>();
     let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+    referenceMap.set(variable.variablesReference, listForDepth);
 
     if (variable.type === 'Thread') { /* Java specific */ // TODO check if main still in stack
       this.javaCodeIsFinished = true;
@@ -122,7 +123,7 @@ export class BackendSession {
       const variablesReference = actualVariable.variablesReference;
 
       if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.type);
+        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.type, referenceMap);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
@@ -140,26 +141,16 @@ export class BackendSession {
     ] as [HeapValue, Array<RawHeapValue>];
   }
 
-  private static hasLoop(type: string, variable: Variable, circleSet: Set<Variable>): boolean {
-    let isInLoop = false;
-    if (circleSet.has(variable)) {
-      return true;
-    }
-    circleSet.forEach((it) => {
-      let equals = variable.name === it.name && variable.type === it.type && variable.variablesReference === it.variablesReference && variable.value === it.value && (variable.evaluateName && it.evaluateName || !variable.evaluateName && !it.evaluateName);
-      if (type === 'dict') {
-        equals = variable.evaluateName && it.evaluateName ? equals && variable.evaluateName.replace(/[\w]*/, '') === it.evaluateName.replace(/[\w]*/, '') : false;
-      }
-
-      if (equals) { isInLoop = true; }
-    });
-    return isInLoop;
-  }
-
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, initialType: string, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, initialType: string, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
-    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+    let listForDepth: Variable[];
+    if (referenceMap.has(variable.variablesReference)) {
+      listForDepth = referenceMap.get(variable.variablesReference)!;
+    } else {
+      listForDepth = await this.variablesRequest(session, variable.variablesReference);
+      referenceMap.set(variable.variablesReference, listForDepth);
+    }
 
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
@@ -169,7 +160,7 @@ export class BackendSession {
         visitedSet.add(actualVariable.variablesReference);
 
         if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
-          const elem = await this.createInnerHeapVariable(actualVariable, session, initialType, visitedSet);
+          const elem = await this.createInnerHeapVariable(actualVariable, session, initialType, referenceMap, visitedSet);
           rawHeapValues = rawHeapValues.concat(elem);
         }
       }
