@@ -85,12 +85,13 @@ function updateIntend(traceElem) {
  */
 function updateRefArrows(traceElem) {
   const tags = getCurrentTags(traceElem);
+  refTags.forEach((tag) => tag.remove());
+  refTags = [];
 
   if (!tags) {
     return;
   }
 
-  refTags.forEach((tag) => tag.remove());
   refTags = tags.filter((tag) => tag.elem1 && tag.elem2).map((tag) => {
     return new LeaderLine(tag.elem1, tag.elem2, {
       size: 2,
@@ -132,11 +133,11 @@ function getCurrentTags(traceElem) {
   });
 
   if (heapTags) {
-    s = heapTags.map((t) => {
+    s = heapTags.map((tt) => {
       return {
-        tag: t,
-        elem1: document.getElementById("startPointer" + t),
-        elem2: document.getElementById("heapEndPointer" + t),
+        tag: tt,
+        elem1: document.getElementById("startPointer" + tt),
+        elem2: document.getElementById("heapEndPointer" + tt),
       };
     });
   }
@@ -151,7 +152,7 @@ function getCurrentTags(traceElem) {
  * @returns
  */
 function getColor(tag) {
-  let hue = ((0.618033988749895 + tag.tag / 10) % 1) * 100;
+  let hue = ((0.618033988749895 + (Math.random() * 100) / 10) % 1) * 100;
   return `hsl(${hue}, 60%, 45%)`;
 }
 
