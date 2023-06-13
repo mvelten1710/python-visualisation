@@ -17,11 +17,18 @@ export function registerDebugAdapterTracker(
                             // TODO: Check if Class get initialized and do a next instead of step in
                             if (BackendSession.javaCodeIsFinished) {
                                 BackendSession.javaCodeIsFinished = false;
+                                BackendSession.isNextRequest = true;
                                 completer.complete([0, 'signal']);
-                                continueRequest(session, threadId);
+                                await continueRequest(session, threadId);
+                            } else if (BackendSession.isNextRequest) {
+                                BackendSession.isNextRequest = false;
+                                if (backendTraceElement.line <= 1) {
+                                    traceGenerator.backendTrace.push(backendTraceElement);
+                                }
+                                await nextRequest(session, threadId);
                             } else {
                                 traceGenerator.backendTrace.push(backendTraceElement);
-                                stepInRequest(session, threadId);
+                                await stepInRequest(session, threadId);
                             }
                         }
                     } else if (message.event === 'exception') {
@@ -30,6 +37,8 @@ export function registerDebugAdapterTracker(
                     }
                 },
                 async onExit(code, signal) {
+                    BackendSession.isNextRequest = true;
+                    BackendSession.javaCodeIsFinished = false;
                     completer.complete([code, signal]);
                 },
             };
@@ -57,6 +66,12 @@ async function continueRequest(session: vscode.DebugSession, threadId: number) {
 
 async function stepInRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('stepIn', {
+        threadId: threadId,
+    });
+}
+
+async function nextRequest(session: vscode.DebugSession, threadId: number) {
+    await session.customRequest('next', {
         threadId: threadId,
     });
 }

@@ -57,9 +57,22 @@ export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceEle
 }
 
 function objectItem(name: string, value: HeapValue): string {
+  let headline: string; 
+
+  switch (value.type) {
+    case 'instance':
+      headline = value.name;
+      break;
+    case 'class':
+      headline = value.type + ' ' + value.value.className;
+      break;
+    default:
+      headline = value.type;
+  }
+
   return `
     <div class="column object-item" id="objectItem${name}">
-      <div>${value.type !== 'class' ? value.type : value.type + ' ' + value.value.className}</div>
+      <div>${headline}</div>
       <div>${heapValue(name, value)}</div>
     </div>
   `;
@@ -77,6 +90,15 @@ function heapValue(name: string, heapValue: HeapValue): string {
         </div>
       `;
       break;
+    case 'instance':
+      const instanceKeys = Array.from(Object.keys(heapValue.value));
+      const instanceValues = Array.from(Object.values(heapValue.value)); // maybe endpointer look for if its exist and if add a second number or key or smth
+      result = `
+        <div class="column" id="heapEndPointer${name}">
+          ${instanceKeys.map((key, index) => dictValue(key, instanceValues[index])).join('')}
+        </div>
+      `;
+      break;
     case 'class':
       const objectKeys = Array.from(Object.keys(heapValue.value.properties));
       const objectValues = Array.from(Object.values(heapValue.value.properties));
@@ -90,13 +112,6 @@ function heapValue(name: string, heapValue: HeapValue): string {
       result = `
         <div class="row" id="heapEndPointer${name}">
           ${heapValue.value.map((v, i) => setValue(v)).join('')}
-        </div>
-      `;
-      break;
-    case 'instance':
-      result = `
-        <div class="row" id="heapEndPointer${name}">
-          ${heapValue.value} ${heapValue.type}
         </div>
       `;
       break;

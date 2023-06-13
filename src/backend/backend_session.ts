@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
 import * as VariableMapper from "./VariableMapper";
 
+enum BasicTypes { 'int', 'float', 'str', 'bool', 'ref', 'byte', 'short', 'long', 'double', 'dict', 'list', 'tuple', 'set', 'class', 'type' };
+
 export class BackendSession {
   static javaCodeIsFinished: boolean;
+  static isNextRequest: boolean = true;
+  static language: SupportedLanguages;
 
   /**
    * Makes various requests to the debugger to retrieve function, objects and simple variables to create a BackendTraceElem
@@ -34,6 +38,11 @@ export class BackendSession {
       const scopes = await this.scopesRequest(session, stackFrames[i].id);
       const [locals, globals] = [scopes[0], scopes[1]];
       const localsVariables = await this.variablesRequest(session, locals.variablesReference);
+
+      if (stackFrames[i].line > 1 && localsVariables.length < 1) {
+        this.isNextRequest = true;
+        continue;
+      }
 
       const primitiveVariables = localsVariables.filter((variable) =>
         variable.variablesReference === 0 ||
@@ -94,57 +103,71 @@ export class BackendSession {
         const result = await this.createHeapVariable(variable, session);
         if (!result) { return acc; }
         heapVars = result[1].reduce((acc, variable) => {
-          return acc.set(variable.ref, { type: variable.type, value: variable.value } as HeapValue);
+          return acc.set(variable.ref, { type: variable.type, name: variable.name, value: variable.value } as HeapValue);
         }, heapVars);
         return (await acc).set(variable.variablesReference, result[0]);
       }, Promise.resolve(heap));
   }
 
   private static async createHeapVariable(variable: Variable, session: vscode.DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
-    let rawHeapValues = new Array<RawHeapValue>();
-    const isClass = variable.type === 'type';
-    const isClassOrDict = isClass || variable.type === 'dict';
-    let list = isClassOrDict ? new Map<string, Value>() : new Array<Value>();
-    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
-    referenceMap.set(variable.variablesReference, listForDepth);
-
     if (variable.type === 'Thread') { /* Java specific */ // TODO check if main still in stack
       this.javaCodeIsFinished = true;
       return;
     }
+
+    let rawHeapValues = new Array<RawHeapValue>();
+    let nameOfInstance: string | undefined;
+    if (!Object.values(BasicTypes).includes(variable.type) && this.language === 'python') {
+      nameOfInstance = variable.type;
+      variable.type = 'instance';
+    }
+    const isClass = variable.type === 'type';
+    const isClassOrDictOrInstance = isClass || variable.type === 'dict' || nameOfInstance;
+    let list = isClassOrDictOrInstance ? new Map<string, Value>() : new Array<Value>();
+    let listForDepth = await this.variablesRequest(session, variable.variablesReference);
+    referenceMap.set(variable.variablesReference, listForDepth);
 
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
       listForDepth = remainingVariables;
 
       if (!actualVariable) {
-        break;
+        continue;
       }
       const variablesReference = actualVariable.variablesReference;
 
       if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
-        const elem = await this.createInnerHeapVariable(actualVariable, session, variable.type, referenceMap);
+        const elem = await this.createInnerHeapVariable(actualVariable, session, referenceMap);
         rawHeapValues = rawHeapValues.concat(elem);
       }
 
-      isClassOrDict
+      isClassOrDictOrInstance
         ? (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
         : (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
     } while (listForDepth.length > 0);
 
-    return [
-      {
+    const heapValue = variable.type === 'instance'
+      ? {
+        type: isClass ? 'class' : variable.type,
+        name: nameOfInstance,
+        value: isClass ? { className: variable.name, properties: list } : list,
+      }
+      : {
         type: isClass ? 'class' : variable.type,
         value: isClass ? { className: variable.name, properties: list } : list,
-      },
+      };
+
+    return [
+      heapValue,
       rawHeapValues,
     ] as [HeapValue, Array<RawHeapValue>];
   }
 
-  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, initialType: string, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
+  private static async createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
     let listForDepth: Variable[];
+    let nameOfInstance: string | undefined;
     if (referenceMap.has(variable.variablesReference)) {
       listForDepth = referenceMap.get(variable.variablesReference)!;
     } else {
@@ -152,32 +175,37 @@ export class BackendSession {
       referenceMap.set(variable.variablesReference, listForDepth);
     }
 
+    if (!Object.values(BasicTypes).includes(variable.type)) {
+      nameOfInstance = variable.type;
+      variable.type = 'instance';
+    }
+
     do {
       const [actualVariable, ...remainingVariables] = listForDepth;
       const variablesReference = actualVariable.variablesReference;
-
       if (!visitedSet.has(variablesReference)) {
         visitedSet.add(actualVariable.variablesReference);
 
         if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
-          const elem = await this.createInnerHeapVariable(actualVariable, session, initialType, referenceMap, visitedSet);
+          const elem = await this.createInnerHeapVariable(actualVariable, session, referenceMap, visitedSet);
           rawHeapValues = rawHeapValues.concat(elem);
         }
       }
-      
-      heapValue = this.getUpdateForHeapV(variable, heapValue, VariableMapper.toValue(actualVariable));
-      
+
+      heapValue = this.getUpdateForHeapV(variable, actualVariable, heapValue, VariableMapper.toValue(actualVariable));
+
       listForDepth = remainingVariables;
     } while (listForDepth.length > 0);
 
     return rawHeapValues.concat({
       ref: variable.variablesReference,
       type: variable.type,
+      name: nameOfInstance,
       value: heapValue
     } as RawHeapValue);
   }
 
-  private static getUpdateForHeapV(variable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
+  private static getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
     switch (variable.type) {
       case 'list':
       case 'tuple':
@@ -195,13 +223,19 @@ export class BackendSession {
         return actualHeapV
           ? (actualHeapV as Map<string, Value>).set(variable.name, value)
           : new Map<string, Value>().set(variable.name, value);
+      case 'instance':
+        return actualHeapV
+          ? (actualHeapV as Map<string, Value>).set(actualVariable.name, value)
+          : new Map<string, Value>().set(actualVariable.name, value);
       default:
         if (variable.type.includes("[]")) { // int[], float[], int[][]
           return actualHeapV
             ? (actualHeapV as Array<Value>).concat(value)
             : Array.of(value);
         }
+
         return Array.of(value);
+        
     }
   }
 
