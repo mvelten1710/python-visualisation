@@ -26,6 +26,7 @@ type HeapV = Array<Value> | Map<any, Value> | ClassValue;
 type RawHeapValue = {
   ref: Address;
   type: HeapType;
+  name: string,
   value: HeapV;
 };
 
@@ -55,7 +56,7 @@ type HeapValue =
   | { type: 'set'; value: Array<Value> }
   | { type: 'dict'; value: Map<any, Value> }
   | { type: 'class'; value: ClassValue }
-  | { type: 'instance'; value: string };
+  | { type: 'instance'; name: string, value: Map<string, Value> };
 
 type ClassValue = {
   className: string;
