@@ -6,7 +6,6 @@ import { setContextState } from '../utils';
 import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
 import Completer from '../Completer';
-import { BackendSession } from './backend_session';
 
 export class TraceGenerator {
     backendTrace: BackendTrace = [];
@@ -33,7 +32,6 @@ export class TraceGenerator {
             await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE, this.inTestingState);
             return;
         }
-        BackendSession.language = this.language;
 
         // INIT DEBUGGER
         const completer = new Completer<[number | undefined, string | undefined]>();

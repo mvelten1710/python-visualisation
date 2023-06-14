@@ -1,30 +1,25 @@
 import * as vscode from 'vscode';
 import { TraceGenerator } from './TraceGenerator';
-import { BackendSession } from './backend_session';
 import Completer from '../Completer';
+import {createBackendTraceElem, javaCodeIsFinished, isNextRequest} from './BackendSession';
 
 export function registerDebugAdapterTracker(
     traceGenerator: TraceGenerator, completer: Completer<[number | undefined, string | undefined]>
 ): vscode.Disposable {
-    return vscode.debug.registerDebugAdapterTrackerFactory(traceGenerator.language /* TODO traceGenerator.language */, {
+    return vscode.debug.registerDebugAdapterTrackerFactory(traceGenerator.language, {
         createDebugAdapterTracker(session: vscode.DebugSession) {
             return {
                 async onDidSendMessage(message) {
                     if (message.event === 'stopped' && message.body.reason !== 'exception') {
                         const threadId = message.body.threadId;
                         if (threadId) {
-                            const backendTraceElement = await BackendSession.createBackendTraceElem(session, threadId);
+                            const backendTraceElement = await createBackendTraceElem(session, threadId, traceGenerator.language);
                             // TODO: Check if Class get initialized and do a next instead of step in
-                            if (BackendSession.javaCodeIsFinished) {
-                                BackendSession.javaCodeIsFinished = false;
-                                BackendSession.isNextRequest = true;
+                            if (javaCodeIsFinished) {
                                 completer.complete([0, 'signal']);
                                 await continueRequest(session, threadId);
-                            } else if (BackendSession.isNextRequest) {
-                                BackendSession.isNextRequest = false;
-                                if (backendTraceElement.line <= 1) {
+                            } else if (isNextRequest) {
                                     traceGenerator.backendTrace.push(backendTraceElement);
-                                }
                                 await nextRequest(session, threadId);
                             } else {
                                 traceGenerator.backendTrace.push(backendTraceElement);
@@ -37,8 +32,6 @@ export function registerDebugAdapterTracker(
                     }
                 },
                 async onExit(code, signal) {
-                    BackendSession.isNextRequest = true;
-                    BackendSession.javaCodeIsFinished = false;
                     completer.complete([code, signal]);
                 },
             };
