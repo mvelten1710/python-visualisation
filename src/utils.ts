@@ -37,7 +37,10 @@ export async function getContextState<T>(context: vscode.ExtensionContext, key: 
   return await context.workspaceState.get<T>(key);
 }
 
+let uniqueId: number = -1;
+
 export function backendToFrontend(traceElem: BackendTraceElem): FrontendTraceElem {
+  uniqueId = -1;
   // Filter "special variables" & "function variables" out
   // Convert variables to html elements so that they can be used right away
   const frameItems = `
@@ -128,12 +131,13 @@ function heapValue(name: string, heapValue: HeapValue): string {
 }
 
 function dictValue(key: any, value: Value): string {
+  uniqueId++;
   return `
     <div class="row">
       <div class="box box-content-dict">
         ${key}
       </div>
-      <div class="box box-content-dict" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+      <div class="box box-content-dict" ${value.type === 'ref' ? `id="${uniqueId}startPointer${value.value}"` : ''}>
         ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
@@ -141,12 +145,13 @@ function dictValue(key: any, value: Value): string {
 }
 
 function listValue(value: Value, index: number): string {
+  uniqueId++;
   return `
     <div class="box list column">
       <div class="row box-content-top">
         ${index}
       </div>
-      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="${uniqueId}startPointer${value.value}"` : ''}>
         ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
@@ -154,9 +159,10 @@ function listValue(value: Value, index: number): string {
 }
 
 function setValue(value: Value): string {
+  uniqueId++;
   return `
     <div class="box box-set column">
-      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="startPointer${value.value}"` : ''}>
+      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="${uniqueId}startPointer${value.value}"` : ''}>
         ${value.type === 'ref' ? '' : value.value}
       </div>
     </div>
@@ -195,11 +201,7 @@ function frameSubItem(frameName: string, name: string, value: Value): string {
 export async function startFrontend(
   id: string,
   context: vscode.ExtensionContext,
-  trace: string | undefined
+  trace: string
 ): Promise<VisualizationPanel | undefined> {
-  if (trace) {
     return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
-  } else {
-    await vscode.window.showErrorMessage("Error ProgramFlow-Visualization: Frontend couldn't be initialized!");
-  }
 }

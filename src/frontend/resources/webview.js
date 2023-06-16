@@ -115,29 +115,32 @@ function updateRefArrows(traceElem) {
  * @returns A list with all ids that have either a start or end pointer id in the html
  */
 function getCurrentTags(traceElem) {
-  const normalTags = traceElem[1].match(/(?<=id=")(.+)Pointer[0-9]+/g);
+  const stackTags = traceElem[1].match(/(?<=id=")(.+)Pointer[0-9]+/g);
   const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
+  const uniqueId = traceElem[2].match(/(?<=)\d+(?=startPointer)/g);
 
-  if (!normalTags) {
+  if (!stackTags) {
     return;
   }
 
   let s = [];
-  const t = normalTags.map((normalTag) => {
-    const id = normalTag.match(/(?<=.+)[0-9]+/g);
+  const t = stackTags.map((tag) => {
+    const id = tag.match(/(?<=.+)[0-9]+/g);
     return {
       tag: id,
-      elem1: document.getElementById(normalTag),
+      elem1: document.getElementById(tag),
       elem2: document.getElementById("heapEndPointer" + id),
     };
   });
 
   if (heapTags) {
-    s = heapTags.map((tt) => {
+    s = heapTags.map((reference, index) => {
       return {
-        tag: tt,
-        elem1: document.getElementById("startPointer" + tt),
-        elem2: document.getElementById("heapEndPointer" + tt),
+        tag: reference,
+        elem1: document.getElementById(
+          uniqueId[index] + "startPointer" + reference
+        ),
+        elem2: document.getElementById("heapEndPointer" + reference),
       };
     });
   }
