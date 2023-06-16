@@ -41,7 +41,8 @@ type Value =
   | { type: 'byte'; value: number }
   | { type: 'short'; value: number }
   | { type: 'long'; value: number }
-  | { type: 'double'; value: number };
+  | { type: 'double'; value: number }
+  | { type: 'number'; value: number };
 
 
 type StackElem = {
