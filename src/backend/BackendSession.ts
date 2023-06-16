@@ -13,6 +13,9 @@ export async function createBackendTraceElem(
     threadId: number,
     language: SupportedLanguages
 ): Promise<BackendTraceElem> {
+    javaCodeIsFinished = false;
+    isNextRequest = true;
+
     const stackFrames = await stackTraceRequest(session, threadId);
 
     const [stack, heap] = await createStackAndHeap(language, session, stackFrames);
