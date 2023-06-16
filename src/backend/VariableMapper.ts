@@ -7,6 +7,7 @@ export function toValue(variable: Variable): Value {
         case 'short':
         case 'long':
         case 'double':
+        case 'number':
             return {
                 type: variable.type,
                 value: Number(variable.value),
