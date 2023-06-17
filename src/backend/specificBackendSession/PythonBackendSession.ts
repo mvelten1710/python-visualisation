@@ -10,8 +10,8 @@ export async function createPythonStackAndHeap(
     let heap = new Map<Address, HeapValue>();
     let isNextRequest: boolean = true;
 
-    for (let i = 0; i < stackFrames.length; i++) {
-        const scopes = await scopesRequest(session, stackFrames[i].id);
+    for (const stackFrame of stackFrames) {
+        const scopes = await scopesRequest(session, stackFrame.id);
         const [locals, globals] = [scopes[0], scopes[1]];
         const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)'));
 
@@ -27,8 +27,7 @@ export async function createPythonStackAndHeap(
             (variable) =>
                 variable.variablesReference > 0 &&
                 variable.name !== 'class variables' &&
-                variable.name !== 'function variables' &&
-                variable.name !== 'self' // TODO not handeld
+                variable.name !== 'function variables'
         );
 
         const specialVariables = (
@@ -47,26 +46,22 @@ export async function createPythonStackAndHeap(
         const heapVariables = [...heapVariablesWithoutSpecial, ...specialVariables];
         const allVariables = [...primitiveVariables, ...heapVariables];
 
-        stack.push(createStackElemFrom(stackFrames[i], allVariables));
+        stack.push(createStackElemFrom(stackFrame, allVariables));
 
-        const isLastFrame = i === stackFrames.length - 1;
-        if (isLastFrame) {
-            // TODO better styling and getting already full heap back
-            let heapVars = new Map<Address, HeapValue>();
+        let heapVars = new Map<Address, HeapValue>();
 
-            heap = await getHeapOf(heapVariables, heap, heapVars, session);
+        heap = new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))]);
 
-            heapVars.forEach((value, key) => {
-                if (!heap.has(key)) {
-                    heap.set(key, value);
-                }
-            });
-        }
+        heapVars.forEach((value, key) => {
+            if (!heap.has(key)) {
+                heap.set(key, value);
+            }
+        });
     }
     return [stack, heap, isNextRequest];
 }
 
-async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<number, HeapValue>> {
+async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<Address, HeapValue>> {
     return await variables
         .filter((v) => v.variablesReference > 0)
         .reduce(async (acc, variable) => {
@@ -115,7 +110,7 @@ async function createHeapVariable(variable: Variable, session: vscode.DebugSessi
     const heapValue = variable.type === 'instance'
         ? {
             type: isClass ? 'class' : variable.type,
-            name: nameOfInstance,
+            name: nameOfInstance, // TODO maybe geht auch dauerhaft so
             value: isClass ? { className: variable.name, properties: list } : list,
         }
         : {
