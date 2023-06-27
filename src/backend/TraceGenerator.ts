@@ -1,5 +1,5 @@
 import stringify from 'stringify-json';
-import { ExtensionContext, Uri, debug } from 'vscode';
+import { ExtensionContext, Uri, debug, commands } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
 import { setContextState } from '../utils';
@@ -49,7 +49,10 @@ export class TraceGenerator {
 
         // FINISHING
         debugAdapterTracker.dispose();
-        if (this.language === 'python') { await FileHandler.deleteFile(tempFile); }
+        if (this.language === 'python') {
+            await FileHandler.deleteFile(tempFile);
+            await commands.executeCommand('workbench.action.closeActiveEditor');
+        }
         await FileHandler.createBackendTraceOutput(this.backendTrace, this.file);
         await setContextState(
             this.context,
