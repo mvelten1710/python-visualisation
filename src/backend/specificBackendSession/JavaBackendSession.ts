@@ -72,7 +72,6 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
     let list = new Array<Value>();
 
     if (variable.type === 'String') {
-        const x = await variablesRequest(session, variable.variablesReference);
         return createStringHeapValue(variable);
     }
 
@@ -88,21 +87,17 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
         }
 
         if (actualVariable.type === 'String') {
-            const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value } as Variable);
-            (list as Array<Value>).push(variableValue);
+            const [variableRefValue, rawHeapValue] = createStackedStringHeapValue(actualVariable);
+            rawHeapValues.push(rawHeapValue);
+            (list as Array<Value>).push(variableRefValue);
             continue;
-        } else if (actualVariable.value.includes("StringBuffer") || actualVariable.value.includes("StringBuilder") || actualVariable.value.includes("Character")) { // FIXME to can use Character[] oder Boolean[] need of "Character".includes(actualVariable.value)
-            const x = await variablesRequest(session, actualVariable.variablesReference);
-            const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value.split("\"")[1] } as Variable);
-            (list as Array<Value>).push(variableValue);
-            continue;
-        } else if (actualVariable.value.includes("Boolean")) {
-            const variableValue: Value = VariableMapper.toValue({ type: 'boolean', value: actualVariable.value.split("\"")[1] } as Variable);
-            (list as Array<Value>).push(variableValue);
-            continue;
-        } else if (Object.values(NumberClasses).includes(variable.value.split("@")[0])) {
-            const x = await variablesRequest(session, actualVariable.variablesReference);
-            const variableValue: Value = VariableMapper.toValue({ type: 'number', value: actualVariable.value.split("\"")[1] } as Variable);
+        }
+
+        if (isSpecialCase(variable, actualVariable)) {
+            const variableValue: Value = VariableMapper.toValue({
+                type: getTypeOf(actualVariable),
+                value: actualVariable.value.split("\"")[1]
+            } as Variable);
             (list as Array<Value>).push(variableValue);
             continue;
         }
@@ -136,13 +131,25 @@ function createStringHeapValue(variable: Variable): [HeapValue, Array<RawHeapVal
             type: 'wrapper',
             name: variable.type,
             value: variableValue,
-        }, Array.of({
-            ref: variable.variablesReference,
-            type: 'wrapper',
-            name: variable.type,
-            value: Array.of(variableValue)
-        })
+        }, Array.of()
     ] as [HeapValue, Array<RawHeapValue>];
+}
+
+function createStackedStringHeapValue(variable: Variable): [Value, RawHeapValue] {
+    const variableRefValue: Value = VariableMapper.toValue({
+        type: 'ref',
+        variablesReference: variable.variablesReference
+    } as Variable);
+    const rawHeapValue: RawHeapValue = {
+        ref: variable.variablesReference,
+        type: 'wrapper',
+        name: variable.type,
+        value: Array.of(VariableMapper.toValue({
+            type: 'str',
+            value: variable.value.split("\"")[1]
+        } as Variable))
+    } as RawHeapValue;
+    return [variableRefValue, rawHeapValue];
 }
 
 async function createInnerHeapVariable(variable: Variable, session: DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
@@ -165,25 +172,19 @@ async function createInnerHeapVariable(variable: Variable, session: DebugSession
             visitedSet.add(actualVariable.variablesReference);
 
             if (actualVariable.type === 'String') {
-                const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value } as Variable);
+                const [variableRefValue, rawHeapValue] = createStackedStringHeapValue(actualVariable);
+                rawHeapValues.push(rawHeapValue);
                 heapValue = heapValue
-                    ? (heapValue as Array<Value>).concat(variableValue)
-                    : Array.of(variableValue);
+                    ? (heapValue as Array<Value>).concat(variableRefValue)
+                    : Array.of(variableRefValue);
                 continue;
-            } else if (actualVariable.value.includes("StringBuffer") || actualVariable.value.includes("StringBuilder") || actualVariable.value.includes("Character")) {
-                const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value.split("\"")[1] } as Variable);
-                heapValue = heapValue
-                    ? (heapValue as Array<Value>).concat(variableValue)
-                    : Array.of(variableValue);
-                continue;
-            } else if (actualVariable.value.includes("Boolean")) {
-                const variableValue: Value = VariableMapper.toValue({ type: 'boolean', value: actualVariable.value.split("\"")[1] } as Variable);
-                heapValue = heapValue
-                    ? (heapValue as Array<Value>).concat(variableValue)
-                    : Array.of(variableValue);
-                continue;
-            } else if (Object.values(NumberClasses).includes(variable.value.split("@")[0])) {
-                const variableValue: Value = VariableMapper.toValue({ type: 'number', value: actualVariable.value.split("\"")[1] } as Variable);
+            }
+
+            if (isSpecialCase(variable, actualVariable)) {
+                const variableValue: Value = VariableMapper.toValue({
+                    type: getTypeOf(actualVariable),
+                    value: actualVariable.value.split("\"")[1]
+                } as Variable);
                 heapValue = heapValue
                     ? (heapValue as Array<Value>).concat(variableValue)
                     : Array.of(variableValue);
@@ -206,6 +207,29 @@ async function createInnerHeapVariable(variable: Variable, session: DebugSession
         name: variable.type,
         value: heapValue
     } as RawHeapValue);
+}
+
+function isSpecialCase(variable: Variable, actualVariable: Variable): boolean {
+    return actualVariable.value.includes("StringBuffer") ||
+        actualVariable.value.includes("StringBuilder") ||
+        actualVariable.value.includes("Character")
+        ||
+        actualVariable.value.includes("Boolean")
+        ||
+        Object.values(NumberClasses).includes(variable.value.split("@")[0])
+        ;
+}
+
+function getTypeOf(variable: Variable): string {
+    if (variable.value.includes("StringBuffer") || variable.value.includes("StringBuilder") || variable.value.includes("Character")) {
+        return 'str';
+    }
+    else if (variable.value.includes("Boolean")) {
+        return 'boolean';
+    }
+    else {
+        return 'number';
+    }
 }
 
 function isWrapper(variable: Variable): boolean {
