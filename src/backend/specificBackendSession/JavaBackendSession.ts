@@ -1,72 +1,59 @@
 import { DebugSession } from "vscode";
-import { scopesRequest, variablesRequest, createStackElemFrom } from "../BackendSession";
+import { scopesRequest, variablesRequest, createStackElemFrom, BasicTypes } from "../BackendSession";
 import * as VariableMapper from "../VariableMapper";
+
+enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Double', 'BigDecimal' }
 
 export async function createJavaStackAndHeap(
     session: DebugSession,
     stackFrames: Array<StackFrame>
-): Promise<[Array<StackElem>, Map<Address, HeapValue>, boolean]> {
+): Promise<[Array<StackElem>, Map<Address, HeapValue>, boolean, boolean]> {
     let stack = Array<StackElem>();
     let heap = new Map<Address, HeapValue>();
+    let isNextRequest: boolean = true;
 
-    if (!stackFrames[0].name.includes('.main(')) {
-        return [stack, heap, true];
+    if (stackFrames.filter(frame => frame.name.includes('.main(')).length <= 0) {
+        return [stack, heap, false, true];
     }
 
-    for (let i = 0; i < stackFrames.length; i++) {
-        const scopes = await scopesRequest(session, stackFrames[i].id);
+    for (const stackFrame of stackFrames) {
+        const scopes = await scopesRequest(session, stackFrame.id);
         const [locals, globals] = [scopes[0], scopes[1]];
         const localsVariables = await variablesRequest(session, locals.variablesReference);
 
+        if (localsVariables.length > 1 && (!Object.values(BasicTypes).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(NumberClasses).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]).includes(localsVariables.at(-1)!.type.split('[')[0]))) {
+            isNextRequest = false; // TODO remember old and compare to new to determine if necessary 
+        }
 
         const primitiveVariables = localsVariables.filter((variable) =>
-            variable.variablesReference === 0 || variable.type === 'String'
+            variable.variablesReference === 0
         );
 
-        const heapVariablesWithoutSpecial = localsVariables.filter(
+        const heapVariables = localsVariables.filter(
             (variable) =>
-                variable.variablesReference > 0 && // FIXME important in java?
-                variable.name !== 'class variables' &&
-                variable.name !== 'function variables' &&
-                variable.type !== 'String'
+                variable.variablesReference > 0
         );
 
-        const specialVariables = (
-            await Promise.all(
-                localsVariables
-                    .filter(
-                        (variable) =>
-                            variable.variablesReference > 0 &&
-                            (variable.name === 'class variables' || variable.name === 'function variables')
-                    ).map(async (variable) => {
-                        return await variablesRequest(session, variable.variablesReference);
-                    })
-            )
-        ).flat();
-
-        const heapVariables = [...heapVariablesWithoutSpecial, ...specialVariables];
         const allVariables = [...primitiveVariables, ...heapVariables];
 
-        stack.push(createStackElemFrom(stackFrames[i], allVariables));
+        stack.push(createStackElemFrom(stackFrame, allVariables));
 
-        const isLastFrame = i === stackFrames.length - 1;
-        if (isLastFrame) {
-            // TODO better styling and getting already full heap back
-            let heapVars = new Map<Address, HeapValue>();
+        let heapVars = new Map<Address, HeapValue>();
 
-            heap = await getHeapOf(heapVariables, heap, heapVars, session);
+        heap = heapVariables.length > 0
+            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))])
+            : heap;
 
-            heapVars.forEach((value, key) => {
-                if (!heap.has(key)) {
-                    heap.set(key, value);
-                }
-            });
-        }
+        heapVars.forEach((value, key) => {
+            if (!heap.has(key)) {
+                heap.set(key, value);
+            }
+        });
     }
-    return [stack, heap, false];
+    return [stack, heap, isNextRequest, false];
 }
 
-async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: DebugSession): Promise<Map<number, HeapValue>> {
+async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: DebugSession): Promise<Map<Address, HeapValue>> {
     return await variables
         .filter((v) => v.variablesReference > 0)
         .reduce(async (acc, variable) => {
@@ -82,9 +69,13 @@ async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, he
 
 async function createHeapVariable(variable: Variable, session: DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
     let rawHeapValues = new Array<RawHeapValue>();
-
-
     let list = new Array<Value>();
+
+    if (variable.type === 'String') {
+        const x = await variablesRequest(session, variable.variablesReference);
+        return createStringHeapValue(variable);
+    }
+
     let listForDepth = await variablesRequest(session, variable.variablesReference);
     referenceMap.set(variable.variablesReference, listForDepth);
 
@@ -95,23 +86,40 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
         if (!actualVariable) {
             continue;
         }
-        const isStringBufferBuilder = actualVariable.value.includes("StringBuffer") || actualVariable.value.includes("StringBuilder");
+
+        if (actualVariable.type === 'String') {
+            const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value } as Variable);
+            (list as Array<Value>).push(variableValue);
+            continue;
+        } else if (actualVariable.value.includes("StringBuffer") || actualVariable.value.includes("StringBuilder") || actualVariable.value.includes("Character")) { // FIXME to can use Character[] oder Boolean[] need of "Character".includes(actualVariable.value)
+            const x = await variablesRequest(session, actualVariable.variablesReference);
+            const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value.split("\"")[1] } as Variable);
+            (list as Array<Value>).push(variableValue);
+            continue;
+        } else if (actualVariable.value.includes("Boolean")) {
+            const variableValue: Value = VariableMapper.toValue({ type: 'boolean', value: actualVariable.value.split("\"")[1] } as Variable);
+            (list as Array<Value>).push(variableValue);
+            continue;
+        } else if (Object.values(NumberClasses).includes(variable.value.split("@")[0])) {
+            const x = await variablesRequest(session, actualVariable.variablesReference);
+            const variableValue: Value = VariableMapper.toValue({ type: 'number', value: actualVariable.value.split("\"")[1] } as Variable);
+            (list as Array<Value>).push(variableValue);
+            continue;
+        }
+
         const variablesReference = actualVariable.variablesReference;
 
-        if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String') && !isStringBufferBuilder) { // TODO Variablen auflösung über das @ im namen
+        if (variablesReference) { // TODO Variablen auflösung über das @ im namen
             const elem = await createInnerHeapVariable(actualVariable, session, referenceMap);
             rawHeapValues = rawHeapValues.concat(elem);
         }
 
-        const variableToMap =
-            isStringBufferBuilder
-                ? { type: 'String', value: actualVariable.value.split("\"")[1] } as Variable
-                : actualVariable;
-        list.push(VariableMapper.toValue(variableToMap));
+        (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
     } while (listForDepth.length > 0);
 
     const heapValue = {
-        type: variable.type,
+        type: isWrapper(variable) ? 'wrapper' : variable.type,
+        name: variable.type,
         value: list,
     };
 
@@ -121,11 +129,26 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
     ] as [HeapValue, Array<RawHeapValue>];
 }
 
+function createStringHeapValue(variable: Variable): [HeapValue, Array<RawHeapValue>] {
+    const variableValue: Value = VariableMapper.toValue({ type: 'str', value: variable.value.split("\"")[1] } as Variable);
+    return [
+        {
+            type: 'wrapper',
+            name: variable.type,
+            value: variableValue,
+        }, Array.of({
+            ref: variable.variablesReference,
+            type: 'wrapper',
+            name: variable.type,
+            value: Array.of(variableValue)
+        })
+    ] as [HeapValue, Array<RawHeapValue>];
+}
+
 async function createInnerHeapVariable(variable: Variable, session: DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
     let listForDepth: Variable[];
-    let nameOfInstance: string | undefined;
     if (referenceMap.has(variable.variablesReference)) {
         listForDepth = referenceMap.get(variable.variablesReference)!;
     } else {
@@ -135,27 +158,58 @@ async function createInnerHeapVariable(variable: Variable, session: DebugSession
 
     do {
         const [actualVariable, ...remainingVariables] = listForDepth;
+        listForDepth = remainingVariables;
         const variablesReference = actualVariable.variablesReference;
+
         if (!visitedSet.has(variablesReference)) {
             visitedSet.add(actualVariable.variablesReference);
 
-            if (variablesReference && !(variable.type === 'String[]' || variable.type === 'String')) {
+            if (actualVariable.type === 'String') {
+                const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value } as Variable);
+                heapValue = heapValue
+                    ? (heapValue as Array<Value>).concat(variableValue)
+                    : Array.of(variableValue);
+                continue;
+            } else if (actualVariable.value.includes("StringBuffer") || actualVariable.value.includes("StringBuilder") || actualVariable.value.includes("Character")) {
+                const variableValue: Value = VariableMapper.toValue({ type: 'str', value: actualVariable.value.split("\"")[1] } as Variable);
+                heapValue = heapValue
+                    ? (heapValue as Array<Value>).concat(variableValue)
+                    : Array.of(variableValue);
+                continue;
+            } else if (actualVariable.value.includes("Boolean")) {
+                const variableValue: Value = VariableMapper.toValue({ type: 'boolean', value: actualVariable.value.split("\"")[1] } as Variable);
+                heapValue = heapValue
+                    ? (heapValue as Array<Value>).concat(variableValue)
+                    : Array.of(variableValue);
+                continue;
+            } else if (Object.values(NumberClasses).includes(variable.value.split("@")[0])) {
+                const variableValue: Value = VariableMapper.toValue({ type: 'number', value: actualVariable.value.split("\"")[1] } as Variable);
+                heapValue = heapValue
+                    ? (heapValue as Array<Value>).concat(variableValue)
+                    : Array.of(variableValue);
+                continue;
+            }
+
+            const variablesReference = actualVariable.variablesReference;
+            if (variablesReference) {
                 const elem = await createInnerHeapVariable(actualVariable, session, referenceMap, visitedSet);
                 rawHeapValues = rawHeapValues.concat(elem);
             }
         }
 
         heapValue = getUpdateForHeapV(variable, actualVariable, heapValue, VariableMapper.toValue(actualVariable));
-
-        listForDepth = remainingVariables;
     } while (listForDepth.length > 0);
 
     return rawHeapValues.concat({
         ref: variable.variablesReference,
-        type: variable.type,
-        name: nameOfInstance,
+        type: isWrapper(variable) ? 'wrapper' : variable.type,
+        name: variable.type,
         value: heapValue
     } as RawHeapValue);
+}
+
+function isWrapper(variable: Variable): boolean {
+    return [...Object.values(NumberClasses), ...["StringBuffer", "StringBuilder", "Boolean", "Character"]].includes(variable.value.split("@")[0]);
 }
 
 function getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {

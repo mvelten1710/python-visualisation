@@ -19,7 +19,7 @@ type Primitive = number | string | boolean;
 
 type Address = number;
 
-type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class';
+type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class' | 'wrapper';
 // java: 'String[]' type
 type HeapV = Array<Value> | Map<any, Value> | ClassValue;
 
@@ -57,7 +57,10 @@ type HeapValue =
   | { type: 'set'; value: Array<Value> }
   | { type: 'dict'; value: Map<any, Value> }
   | { type: 'class'; value: ClassValue }
-  | { type: 'instance'; name: string, value: Map<string, Value> };
+  | { type: 'instance'; name: string, value: Map<string, Value> }
+  | { type: 'wrapper'; name: string; value: Value | Array<Value> };
+// wrapper type -> frontend list elements dodge
+ 
 
 type ClassValue = {
   className: string;

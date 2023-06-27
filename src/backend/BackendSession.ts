@@ -43,12 +43,12 @@ async function stackTraceRequest(session: DebugSession, id: number): Promise<Arr
 async function createStackAndHeap(language: SupportedLanguages, session: DebugSession, stackFrames: StackFrame[]): Promise<[Array<StackElem>, Map<Address, HeapValue>]> {
     switch (language) {
         case 'python':
-            const [pythonStack, pythonHeap, retValIsNextRequest] = await createPythonStackAndHeap(session, stackFrames);
-            isNextRequest = retValIsNextRequest;
+            const [pythonStack, pythonHeap, retValPythonIsNextRequest] = await createPythonStackAndHeap(session, stackFrames);
+            isNextRequest = retValPythonIsNextRequest;
             return [pythonStack, pythonHeap];
         case 'java':
-            const [javaStack, javaHeap, retValJavaCodeFinished] = await createJavaStackAndHeap(session, stackFrames);
-            // isNextRequest = false; // FIXME only python tested and theres a bug
+            const [javaStack, javaHeap, retValJavaIsNextRequest, retValJavaCodeFinished] = await createJavaStackAndHeap(session, stackFrames);
+            isNextRequest = retValJavaIsNextRequest;
             javaCodeIsFinished = retValJavaCodeFinished;
             return [javaStack, javaHeap];
     }

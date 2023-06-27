@@ -14,12 +14,12 @@ export function registerDebugAdapterTracker(
                         const threadId = message.body.threadId;
                         if (threadId) {
                             const backendTraceElement = await createBackendTraceElem(session, threadId, traceGenerator.language);
-                            // TODO: Check if Class get initialized and do a next instead of step in
+
                             if (javaCodeIsFinished) {
                                 completer.complete([0, 'signal']);
                                 await continueRequest(session, threadId);
                             } else if (isNextRequest) {
-                                    traceGenerator.backendTrace.push(backendTraceElement);
+                                traceGenerator.backendTrace.push(backendTraceElement);
                                 await nextRequest(session, threadId);
                             } else {
                                 traceGenerator.backendTrace.push(backendTraceElement);
@@ -46,7 +46,7 @@ export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLa
         request: 'launch',
         program: file?.fsPath ?? `${file}`,
         console: 'integratedTerminal',
-        stopOnEntry: true,
+        stopOnEntry: true
         // logToFile: true, // Only activate if problems with debugger occur
     };
 }
@@ -59,6 +59,12 @@ async function continueRequest(session: vscode.DebugSession, threadId: number) {
 
 async function stepInRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('stepIn', {
+        threadId: threadId,
+    });
+}
+
+async function stepOutRequest(session: vscode.DebugSession, threadId: number) {
+    await session.customRequest('stepOut', {
         threadId: threadId,
     });
 }

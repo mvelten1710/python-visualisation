@@ -64,6 +64,7 @@ function objectItem(name: string, value: HeapValue): string {
 
   switch (value.type) {
     case 'instance':
+    case 'wrapper':
       headline = value.name;
       break;
     case 'class':
@@ -93,6 +94,14 @@ function heapValue(name: string, heapValue: HeapValue): string {
         </div>
       `;
       break;
+    case 'wrapper':
+      const innerText = Array.isArray(heapValue.value) ? heapValue.value.map((value) => wrapperValue(value)) : wrapperValue(heapValue.value);
+      result = `
+        <div class="column" id="heapEndPointer${name}">
+          ${innerText}
+        </div>
+      `;
+      break;
     case 'instance':
       const instanceKeys = Array.from(Object.keys(heapValue.value));
       const instanceValues = Array.from(Object.values(heapValue.value)); // maybe endpointer look for if its exist and if add a second number or key or smth
@@ -118,7 +127,7 @@ function heapValue(name: string, heapValue: HeapValue): string {
         </div>
       `;
       break;
-    /* tuple, list, int[], int[][], ...*/
+        /* tuple, list, int[], int[][], ...*/
     default:
       result = `
         <div class="row" id="heapEndPointer${name}">
@@ -128,6 +137,17 @@ function heapValue(name: string, heapValue: HeapValue): string {
       break;
   }
   return result;
+}
+
+function wrapperValue(value: Value) {
+  uniqueId++;
+  return `
+    <div class="box box-set column">
+      <div class="row box-content-bottom" ${value.type === 'ref' ? `id="${uniqueId}startPointer${value.value}"` : ''}>
+        ${value.type === 'ref' ? '' : value.type === 'str' ? "\"" + value.value + "\"" : value.value}
+      </div>
+    </div>
+  `;
 }
 
 function dictValue(key: any, value: Value): string {

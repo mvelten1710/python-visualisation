@@ -17,7 +17,6 @@ export function toValue(variable: Variable): Value {
         case 'str':
         /* Java specific */
         case 'char':
-        case 'String':
             return {
                 type: 'str',
                 value: variable.value,
