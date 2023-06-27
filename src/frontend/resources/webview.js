@@ -125,7 +125,7 @@ function getCurrentTags(traceElem) {
 
   let s = [];
   const t = stackTags.map((tag) => {
-    const id = tag.match(/(?<=.+)[0-9]+/g);
+    const id = tag.match(/(?<=.*Pointer)[\d]+/g);
     return {
       tag: id,
       elem1: document.getElementById(tag),
