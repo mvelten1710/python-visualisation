@@ -50,7 +50,9 @@ export async function createPythonStackAndHeap(
 
         let heapVars = new Map<Address, HeapValue>();
 
-        heap = new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))]);
+        heap = heapVariables.length > 0
+            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))])
+            : heap;
 
         heapVars.forEach((value, key) => {
             if (!heap.has(key)) {
