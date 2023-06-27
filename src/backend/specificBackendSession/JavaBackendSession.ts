@@ -6,7 +6,8 @@ enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Dou
 
 export async function createJavaStackAndHeap(
     session: DebugSession,
-    stackFrames: Array<StackFrame>
+    stackFrames: Array<StackFrame>,
+    duplicateReferencesMap: Map<number, number> = new Map()
 ): Promise<[Array<StackElem>, Map<Address, HeapValue>, boolean, boolean]> {
     let stack = Array<StackElem>();
     let heap = new Map<Address, HeapValue>();
@@ -21,8 +22,20 @@ export async function createJavaStackAndHeap(
         const [locals, globals] = [scopes[0], scopes[1]];
         const localsVariables = await variablesRequest(session, locals.variablesReference);
 
+        localsVariables.forEach(variable => {
+            const reference = Number(variable.value.split("@")[1]);
+            if (!Number.isNaN(reference)) {
+                if (!duplicateReferencesMap.has(reference)) {
+                    duplicateReferencesMap.set(reference, variable.variablesReference);
+                }
+            }
+        });
+        
+        localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
+        ));
+
         if (localsVariables.length > 1 && (!Object.values(BasicTypes).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(NumberClasses).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]).includes(localsVariables.at(-1)!.type.split('[')[0]))) {
-            isNextRequest = false; // TODO remember old and compare to new to determine if necessary 
+            isNextRequest = false; // TODO remember old and compare to new to determine if necessary, only when class
         }
 
         const primitiveVariables = localsVariables.filter((variable) =>
@@ -36,12 +49,12 @@ export async function createJavaStackAndHeap(
 
         const allVariables = [...primitiveVariables, ...heapVariables];
 
-        stack.push(createStackElemFrom(stackFrame, allVariables));
+        // FIXME duplicateMap <a -> a> <b -> b>! <b -> a>, adjust variables before push -> first heap, then mapping with actual list, AND already chek here @ but whats with deeper stuff, but primitive need
 
         let heapVars = new Map<Address, HeapValue>();
 
         heap = heapVariables.length > 0
-            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))])
+            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, duplicateReferencesMap, session))])
             : heap;
 
         heapVars.forEach((value, key) => {
@@ -49,16 +62,31 @@ export async function createJavaStackAndHeap(
                 heap.set(key, value);
             }
         });
+
+        localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
+        ));
+        stack.push(createStackElemFrom(stackFrame, allVariables));
     }
     return [stack, heap, isNextRequest, false];
 }
 
-async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: DebugSession): Promise<Map<Address, HeapValue>> {
+function getRef(variable: Variable, duplicateReferencesMap: Map<number, number>, stringRefKey?: number): number {
+    const reference = stringRefKey ? stringRefKey : Number(variable.value.split("@")[1]);
+    if (!Number.isNaN(reference)) {
+        const x = duplicateReferencesMap.get(reference);
+        if (x) {
+            return x;
+        }
+    }
+    return variable.variablesReference;
+}
+
+async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, duplicateReferencesMap: Map<number, number>, session: DebugSession): Promise<Map<Address, HeapValue>> {
     return await variables
         .filter((v) => v.variablesReference > 0)
         .reduce(async (acc, variable) => {
             if (!variable) { return acc; }
-            const result = await createHeapVariable(variable, session);
+            const result = await createHeapVariable(variable, duplicateReferencesMap, session);
             if (!result) { return acc; }
             heapVars = result[1].reduce((acc, variable) => {
                 return acc.set(variable.ref, { type: variable.type, name: variable.name, value: variable.value } as HeapValue);
@@ -67,9 +95,12 @@ async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, he
         }, Promise.resolve(heap));
 }
 
-async function createHeapVariable(variable: Variable, session: DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
+async function createHeapVariable(variable: Variable, duplicateReferencesMap: Map<number, number>, session: DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
     let rawHeapValues = new Array<RawHeapValue>();
     let list = new Array<Value>();
+
+    const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
+    variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
 
     if (variable.type === 'String') {
         return createStringHeapValue(variable);
@@ -85,6 +116,9 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
         if (!actualVariable) {
             continue;
         }
+
+        const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
+        variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
 
         if (actualVariable.type === 'String') {
             const [variableRefValue, rawHeapValue] = createStackedStringHeapValue(actualVariable);
@@ -105,7 +139,7 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
         const variablesReference = actualVariable.variablesReference;
 
         if (variablesReference) { // TODO Variablen auflösung über das @ im namen
-            const elem = await createInnerHeapVariable(actualVariable, session, referenceMap);
+            const elem = await createInnerHeapVariable(actualVariable, duplicateReferencesMap, session, referenceMap);
             rawHeapValues = rawHeapValues.concat(elem);
         }
 
@@ -122,6 +156,20 @@ async function createHeapVariable(variable: Variable, session: DebugSession, ref
         heapValue,
         rawHeapValues,
     ] as [HeapValue, Array<RawHeapValue>];
+}
+
+async function updateDuplicateReferencesMap(duplicateReferencesMap: Map<number, number>, variable: Variable, session: DebugSession) {
+    let variableToEvaluate = variable;
+    let stringRefKey;
+    if (variable.type === 'String') {
+        const references = await variablesRequest(session, variable.variablesReference);
+        variableToEvaluate = references.filter(variable => variable.name === 'value')[0];
+        stringRefKey = Number(variableToEvaluate.value.split("@")[1]);
+    }
+    if (!duplicateReferencesMap.has(Number(variableToEvaluate.value.split("@")[1]))) {
+        duplicateReferencesMap.set(Number(variableToEvaluate.value.split("@")[1]), variable.variablesReference);
+    }
+    return stringRefKey;
 }
 
 function createStringHeapValue(variable: Variable): [HeapValue, Array<RawHeapValue>] {
@@ -152,9 +200,13 @@ function createStackedStringHeapValue(variable: Variable): [Value, RawHeapValue]
     return [variableRefValue, rawHeapValue];
 }
 
-async function createInnerHeapVariable(variable: Variable, session: DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
+async function createInnerHeapVariable(variable: Variable, duplicateReferencesMap: Map<number, number>, session: DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
+
+    const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
+    variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
+
     let listForDepth: Variable[];
     if (referenceMap.has(variable.variablesReference)) {
         listForDepth = referenceMap.get(variable.variablesReference)!;
@@ -166,6 +218,10 @@ async function createInnerHeapVariable(variable: Variable, session: DebugSession
     do {
         const [actualVariable, ...remainingVariables] = listForDepth;
         listForDepth = remainingVariables;
+
+        const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
+        variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
+        
         const variablesReference = actualVariable.variablesReference;
 
         if (!visitedSet.has(variablesReference)) {
@@ -193,7 +249,7 @@ async function createInnerHeapVariable(variable: Variable, session: DebugSession
 
             const variablesReference = actualVariable.variablesReference;
             if (variablesReference) {
-                const elem = await createInnerHeapVariable(actualVariable, session, referenceMap, visitedSet);
+                const elem = await createInnerHeapVariable(actualVariable, duplicateReferencesMap, session, referenceMap, visitedSet);
                 rawHeapValues = rawHeapValues.concat(elem);
             }
         }
