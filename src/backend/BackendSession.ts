@@ -1,24 +1,20 @@
 import { DebugSession } from "vscode";
-import { createJavaStackAndHeap } from "./specificBackendSession/JavaBackendSession";
 import * as VariableMapper from "./VariableMapper";
-import { createPythonStackAndHeap } from "./specificBackendSession/PythonBackendSession";
+import { ILanguageBackendSession } from "./ILanguageBackendSession";
 
 export enum BasicTypes { 'int', 'float', 'str', 'bool', 'ref', 'byte', 'short', 'long', 'double', 'dict', 'list', 'tuple', 'set', 'class', 'type' };
 
-export let javaCodeIsFinished: boolean = false;
-export let isNextRequest: boolean = true;
+export let debuggerStep = 'nextStep';
 
 export async function createBackendTraceElem(
     session: DebugSession,
     threadId: number,
-    language: SupportedLanguages
+    languageBackendSession: ILanguageBackendSession
 ): Promise<BackendTraceElem> {
-    javaCodeIsFinished = false;
-    isNextRequest = true;
-
     const stackFrames = await stackTraceRequest(session, threadId);
 
-    const [stack, heap] = await createStackAndHeap(language, session, stackFrames);
+    const [stack, heap, newDebuggerStep] = await languageBackendSession.createStackAndHeap(session, stackFrames);
+    debuggerStep = newDebuggerStep;
 
     const line = stackFrames[0].line;
     return createBackendTraceElemFrom(line, stack, heap);
@@ -38,20 +34,6 @@ async function stackTraceRequest(session: DebugSession, id: number): Promise<Arr
             threadId: id,
         })
     ).stackFrames as Array<StackFrame>;
-}
-
-async function createStackAndHeap(language: SupportedLanguages, session: DebugSession, stackFrames: StackFrame[]): Promise<[Array<StackElem>, Map<Address, HeapValue>]> {
-    switch (language) {
-        case 'python':
-            const [pythonStack, pythonHeap, retValPythonIsNextRequest] = await createPythonStackAndHeap(session, stackFrames);
-            isNextRequest = retValPythonIsNextRequest;
-            return [pythonStack, pythonHeap];
-        case 'java':
-            const [javaStack, javaHeap, retValJavaIsNextRequest, retValJavaCodeFinished] = await createJavaStackAndHeap(session, stackFrames);
-            isNextRequest = retValJavaIsNextRequest;
-            javaCodeIsFinished = retValJavaCodeFinished;
-            return [javaStack, javaHeap];
-    }
 }
 
 export async function scopesRequest(session: DebugSession, id: number): Promise<Array<Scope>> {

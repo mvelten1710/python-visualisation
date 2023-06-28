@@ -1,74 +1,76 @@
 import { DebugSession } from "vscode";
 import { scopesRequest, variablesRequest, createStackElemFrom, BasicTypes } from "../BackendSession";
 import * as VariableMapper from "../VariableMapper";
+import { ILanguageBackendSession } from "../ILanguageBackendSession";
 
 enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Double', 'BigDecimal' }
 
-export async function createJavaStackAndHeap(
-    session: DebugSession,
-    stackFrames: Array<StackFrame>,
-    duplicateReferencesMap: Map<number, number> = new Map()
-): Promise<[Array<StackElem>, Map<Address, HeapValue>, boolean, boolean]> {
-    let stack = Array<StackElem>();
-    let heap = new Map<Address, HeapValue>();
-    let isNextRequest: boolean = true;
+export const javaBackendSession: ILanguageBackendSession = {
+    createStackAndHeap: async (
+        session: DebugSession,
+        stackFrames: Array<StackFrame>,
+        duplicateReferencesMap: Map<number, number> = new Map()
+    ): Promise<[Array<StackElem>, Map<Address, HeapValue>, DebuggerStep]> => {
+        let stack = Array<StackElem>();
+        let heap = new Map<Address, HeapValue>();
+        let debuggerStep: DebuggerStep = 'nextStep';
 
-    if (stackFrames.filter(frame => frame.name.includes('.main(')).length <= 0) {
-        return [stack, heap, false, true];
-    }
-
-    for (const stackFrame of stackFrames) {
-        const scopes = await scopesRequest(session, stackFrame.id);
-        const [locals, globals] = [scopes[0], scopes[1]];
-        const localsVariables = await variablesRequest(session, locals.variablesReference);
-
-        localsVariables.forEach(variable => {
-            const reference = Number(variable.value.split("@")[1]);
-            if (!Number.isNaN(reference)) {
-                if (!duplicateReferencesMap.has(reference)) {
-                    duplicateReferencesMap.set(reference, variable.variablesReference);
-                }
-            }
-        });
-        
-        localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
-        ));
-
-        if (localsVariables.length > 1 && (!Object.values(BasicTypes).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(NumberClasses).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]).includes(localsVariables.at(-1)!.type.split('[')[0]))) {
-            isNextRequest = false; // TODO remember old and compare to new to determine if necessary, only when class
+        if (stackFrames.filter(frame => frame.name.includes('.main(')).length <= 0) {
+            return [stack, heap, 'continue'];
         }
 
-        const primitiveVariables = localsVariables.filter((variable) =>
-            variable.variablesReference === 0
-        );
+        for (const stackFrame of stackFrames) {
+            const scopes = await scopesRequest(session, stackFrame.id);
+            const [locals, globals] = [scopes[0], scopes[1]];
+            const localsVariables = await variablesRequest(session, locals.variablesReference);
 
-        const heapVariables = localsVariables.filter(
-            (variable) =>
-                variable.variablesReference > 0
-        );
+            localsVariables.forEach(variable => {
+                const reference = Number(variable.value.split("@")[1]);
+                if (!Number.isNaN(reference)) {
+                    if (!duplicateReferencesMap.has(reference)) {
+                        duplicateReferencesMap.set(reference, variable.variablesReference);
+                    }
+                }
+            });
 
-        const allVariables = [...primitiveVariables, ...heapVariables];
+            localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
+            ));
 
-        // FIXME duplicateMap <a -> a> <b -> b>! <b -> a>, adjust variables before push -> first heap, then mapping with actual list, AND already chek here @ but whats with deeper stuff, but primitive need
-
-        let heapVars = new Map<Address, HeapValue>();
-
-        heap = heapVariables.length > 0
-            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, duplicateReferencesMap, session))])
-            : heap;
-
-        heapVars.forEach((value, key) => {
-            if (!heap.has(key)) {
-                heap.set(key, value);
+            if (localsVariables.length > 1 && (!Object.values(BasicTypes).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(NumberClasses).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]).includes(localsVariables.at(-1)!.type.split('[')[0]))) {
+                debuggerStep = 'stepIn'; // TODO remember old and compare to new to determine if necessary, only when class
             }
-        });
 
-        localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
-        ));
-        stack.push(createStackElemFrom(stackFrame, allVariables));
+            const primitiveVariables = localsVariables.filter((variable) =>
+                variable.variablesReference === 0
+            );
+
+            const heapVariables = localsVariables.filter(
+                (variable) =>
+                    variable.variablesReference > 0
+            );
+
+            const allVariables = [...primitiveVariables, ...heapVariables];
+
+            let heapVars = new Map<Address, HeapValue>();
+
+            heap = heapVariables.length > 0
+                ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, duplicateReferencesMap, session))])
+                : heap;
+
+            heapVars.forEach((value, key) => {
+                if (!heap.has(key)) {
+                    heap.set(key, value);
+                }
+            });
+
+            localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
+            ));
+            stack.push(createStackElemFrom(stackFrame, allVariables));
+        }
+        return [stack, heap, debuggerStep];
     }
-    return [stack, heap, isNextRequest, false];
-}
+};
+
 
 function getRef(variable: Variable, duplicateReferencesMap: Map<number, number>, stringRefKey?: number): number {
     const reference = stringRefKey ? stringRefKey : Number(variable.value.split("@")[1]);
@@ -221,7 +223,7 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
 
         const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
         variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
-        
+
         const variablesReference = actualVariable.variablesReference;
 
         if (!visitedSet.has(variablesReference)) {

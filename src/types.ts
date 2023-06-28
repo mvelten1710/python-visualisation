@@ -3,6 +3,11 @@
  */
 type SupportedLanguages = 'python' | 'java';
 
+/**
+ * Supported steps for debugger
+ */
+type DebuggerStep = 'stepIn' | 'continue' | 'nextStep';
+
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
 type FrontendTraceElem = [number, string, string];

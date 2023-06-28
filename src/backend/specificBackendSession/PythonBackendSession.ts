@@ -1,67 +1,70 @@
 import * as vscode from 'vscode';
 import * as VariableMapper from "../VariableMapper";
 import { scopesRequest, variablesRequest, createStackElemFrom, BasicTypes } from "../BackendSession";
+import { ILanguageBackendSession } from '../ILanguageBackendSession';
 
-export async function createPythonStackAndHeap(
-    session: vscode.DebugSession,
-    stackFrames: Array<StackFrame>
-): Promise<[Array<StackElem>, Map<Address, HeapValue>, boolean]> {
-    let stack = Array<StackElem>();
-    let heap = new Map<Address, HeapValue>();
-    let isNextRequest: boolean = true;
+export const pythonBackendSession: ILanguageBackendSession = {
+    createStackAndHeap: async (
+        session: vscode.DebugSession,
+        stackFrames: Array<StackFrame>
+    ): Promise<[Array<StackElem>, Map<Address, HeapValue>, DebuggerStep]> => {
+        let stack = Array<StackElem>();
+        let heap = new Map<Address, HeapValue>();
+        let debuggerStep: DebuggerStep = 'nextStep';
 
-    for (const stackFrame of stackFrames) {
-        const scopes = await scopesRequest(session, stackFrame.id);
-        const [locals, globals] = [scopes[0], scopes[1]];
-        const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)'));
+        for (const stackFrame of stackFrames) {
+            const scopes = await scopesRequest(session, stackFrame.id);
+            const [locals, globals] = [scopes[0], scopes[1]];
+            const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)')); // FIXME return wieder dazu als fehlender Schritt?!
 
-        if (localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type))) {
-            isNextRequest = false;
-        }
-
-        const primitiveVariables = localsVariables.filter((variable) =>
-            variable.variablesReference === 0
-        );
-
-        const heapVariablesWithoutSpecial = localsVariables.filter(
-            (variable) =>
-                variable.variablesReference > 0 &&
-                variable.name !== 'class variables' &&
-                variable.name !== 'function variables'
-        );
-
-        const specialVariables = (
-            await Promise.all(
-                localsVariables
-                    .filter(
-                        (variable) =>
-                            variable.variablesReference > 0 &&
-                            (variable.name === 'class variables' || variable.name === 'function variables')
-                    ).map(async (variable) => {
-                        return await variablesRequest(session, variable.variablesReference);
-                    })
-            )
-        ).flat();
-
-        const heapVariables = [...heapVariablesWithoutSpecial, ...specialVariables];
-        const allVariables = [...primitiveVariables, ...heapVariables];
-
-        stack.push(createStackElemFrom(stackFrame, allVariables));
-
-        let heapVars = new Map<Address, HeapValue>();
-
-        heap = heapVariables.length > 0
-            ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))])
-            : heap;
-
-        heapVars.forEach((value, key) => {
-            if (!heap.has(key)) {
-                heap.set(key, value);
+            if (localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type))) {
+                debuggerStep = 'stepIn';
             }
-        });
+
+            const primitiveVariables = localsVariables.filter((variable) =>
+                variable.variablesReference === 0
+            );
+
+            const heapVariablesWithoutSpecial = localsVariables.filter(
+                (variable) =>
+                    variable.variablesReference > 0 &&
+                    variable.name !== 'class variables' &&
+                    variable.name !== 'function variables'
+            );
+
+            const specialVariables = (
+                await Promise.all(
+                    localsVariables
+                        .filter(
+                            (variable) =>
+                                variable.variablesReference > 0 &&
+                                (variable.name === 'class variables' || variable.name === 'function variables')
+                        ).map(async (variable) => {
+                            return await variablesRequest(session, variable.variablesReference);
+                        })
+                )
+            ).flat();
+
+            const heapVariables = [...heapVariablesWithoutSpecial, ...specialVariables];
+            const allVariables = [...primitiveVariables, ...heapVariables];
+
+            stack.push(createStackElemFrom(stackFrame, allVariables));
+
+            let heapVars = new Map<Address, HeapValue>();
+
+            heap = heapVariables.length > 0
+                ? new Map<Address, HeapValue>([...heap, ...(await getHeapOf(heapVariables, heap, heapVars, session))])
+                : heap;
+
+            heapVars.forEach((value, key) => {
+                if (!heap.has(key)) {
+                    heap.set(key, value);
+                }
+            });
+        }
+        return [stack, heap, debuggerStep];
     }
-    return [stack, heap, isNextRequest];
-}
+};
 
 async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, heapVars: Map<number, HeapValue>, session: vscode.DebugSession): Promise<Map<Address, HeapValue>> {
     return await variables

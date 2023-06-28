@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { TraceGenerator } from './TraceGenerator';
 import Completer from '../Completer';
-import {createBackendTraceElem, javaCodeIsFinished, isNextRequest} from './BackendSession';
+import {createBackendTraceElem, debuggerStep} from './BackendSession';
+import { ILanguageBackendSession } from './ILanguageBackendSession';
+import { pythonBackendSession } from './specificBackendSession/PythonBackendSession';
+import { javaBackendSession } from './specificBackendSession/JavaBackendSession';
 
 export function registerDebugAdapterTracker(
     traceGenerator: TraceGenerator, completer: Completer<[number | undefined, string | undefined]>
@@ -13,12 +16,12 @@ export function registerDebugAdapterTracker(
                     if (message.event === 'stopped' && message.body.reason !== 'exception') {
                         const threadId = message.body.threadId;
                         if (threadId) {
-                            const backendTraceElement = await createBackendTraceElem(session, threadId, traceGenerator.language);
+                            const backendTraceElement = await createBackendTraceElem(session, threadId, getLanguageBackendSession(traceGenerator.language));
 
-                            if (javaCodeIsFinished) {
+                            if (debuggerStep === 'continue') {
                                 completer.complete([0, 'signal']);
                                 await continueRequest(session, threadId);
-                            } else if (isNextRequest) {
+                            } else if (debuggerStep === 'nextStep') {
                                 traceGenerator.backendTrace.push(backendTraceElement);
                                 await nextRequest(session, threadId);
                             } else {
@@ -73,4 +76,13 @@ async function nextRequest(session: vscode.DebugSession, threadId: number) {
     await session.customRequest('next', {
         threadId: threadId,
     });
+}
+
+function getLanguageBackendSession(language: SupportedLanguages): ILanguageBackendSession {
+    switch (language) {
+        case 'python':
+            return pythonBackendSession;
+        case 'java':
+            return javaBackendSession;
+    }
 }
