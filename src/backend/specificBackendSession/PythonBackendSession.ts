@@ -18,7 +18,7 @@ export const pythonBackendSession: ILanguageBackendSession = {
             const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)')); // FIXME return wieder dazu als fehlender Schritt?!
 
             if (localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type))) {
-                debuggerStep = 'stepIn';
+                debuggerStep = 'stepIn'; // TODO potentiell einfach reversen -> wenn das alles nicht so ist dann next sonst default stepin
             }
 
             const primitiveVariables = localsVariables.filter((variable) =>
