@@ -270,9 +270,9 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
 function isSpecialCase(variable: Variable, actualVariable: Variable): boolean {
     return actualVariable.value.includes("StringBuffer") ||
         actualVariable.value.includes("StringBuilder") ||
-        actualVariable.value.includes("Character")
+        (actualVariable.value.includes("Character") && !variable.value.includes("["))
         ||
-        actualVariable.value.includes("Boolean")
+        (actualVariable.value.includes("Boolean") && !variable.value.includes("["))
         ||
         Object.values(NumberClasses).includes(variable.value.split("@")[0])
         ;
@@ -282,10 +282,10 @@ function getTypeOf(variable: Variable): string {
     if (variable.value.includes("StringBuffer") || variable.value.includes("StringBuilder")) {
         return 'str';
     }
-    else if (variable.value.includes("Character")) {
-        return 'char';
+    else if (variable.value.includes("Character") && !variable.value.includes("[")) {
+        return 'char'; // TODO LinkedList Bug
     }
-    else if (variable.value.includes("Boolean")) {
+    else if (variable.value.includes("Boolean") && !variable.value.includes("[")) {
         return 'boolean';
     }
     else {
