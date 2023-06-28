@@ -144,7 +144,7 @@ function wrapperValue(value: Value) {
   return `
     <div class="box box-set column">
       <div class="row box-content-bottom" ${value.type === 'ref' ? `id="${uniqueId}startPointer${value.value}"` : ''}>
-        ${value.type === 'ref' ? '' : value.type === 'str' ? "\"" + value.value + "\"" : value.value}
+        ${getCorrectValueOf(value)}
       </div>
     </div>
   `;
@@ -212,10 +212,23 @@ function frameSubItem(frameName: string, name: string, value: Value): string {
         ${name}
       </div>
       <div class="value-border" ${value.type === 'ref' ? `id="${frameName}${name}Pointer${value.value}"` : ''}>
-        ${value.type === 'ref' ? '' : value.value}
+        ${getCorrectValueOf(value)}
       </div>
     </div>
   `;
+}
+
+function getCorrectValueOf(value: Value): string {
+  switch (value.type) {
+    case 'ref':
+      return '';
+    case 'str':
+      return "\"" + value.value.replaceAll("'", "").replaceAll("\"", "") + "\"";
+    case 'char':
+      return "'" + value.value + "'";
+    default:
+      return `${value.value}`;
+  }
 }
 
 export async function startFrontend(

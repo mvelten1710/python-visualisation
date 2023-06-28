@@ -279,8 +279,11 @@ function isSpecialCase(variable: Variable, actualVariable: Variable): boolean {
 }
 
 function getTypeOf(variable: Variable): string {
-    if (variable.value.includes("StringBuffer") || variable.value.includes("StringBuilder") || variable.value.includes("Character")) {
+    if (variable.value.includes("StringBuffer") || variable.value.includes("StringBuilder")) {
         return 'str';
+    }
+    else if (variable.value.includes("Character")) {
+        return 'char';
     }
     else if (variable.value.includes("Boolean")) {
         return 'boolean';
