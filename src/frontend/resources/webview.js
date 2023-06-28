@@ -123,8 +123,7 @@ function getCurrentTags(traceElem) {
     return;
   }
 
-  let s = [];
-  const t = stackTags.map((tag) => {
+  const stackRefs = stackTags.map((tag) => {
     const id = tag.match(/(?<=.*Pointer)[\d]+/g);
     return {
       tag: id,
@@ -133,8 +132,9 @@ function getCurrentTags(traceElem) {
     };
   });
 
+  let heapRefs = [];
   if (heapTags) {
-    s = heapTags.map((reference, index) => {
+    heapRefs = heapTags.map((reference, index) => {
       return {
         tag: reference,
         elem1: document.getElementById(
@@ -145,7 +145,7 @@ function getCurrentTags(traceElem) {
     });
   }
 
-  return [...s, ...t];
+  return [...heapRefs, ...stackRefs];
 }
 
 /**
@@ -155,7 +155,7 @@ function getCurrentTags(traceElem) {
  * @returns
  */
 function getColor(tag) {
-  let hue = ((0.618033988749895 + (Math.random() * 100) / 10) % 1) * 100;
+  const hue = ((0.618033988749895 + tag.tag / 10) % 1) * 100;
   return `hsl(${hue}, 60%, 45%)`;
 }
 
