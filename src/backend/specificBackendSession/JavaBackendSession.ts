@@ -108,6 +108,10 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
         return createStringHeapValue(variable);
     }
 
+    if (variable.type === 'HashMap') {
+        return await createHashMapHeapValues(variable, session);
+    }
+
     let listForDepth = await variablesRequest(session, variable.variablesReference);
     referenceMap.set(variable.variablesReference, listForDepth);
 
@@ -217,7 +221,7 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
         referenceMap.set(variable.variablesReference, listForDepth);
     }
 
-    do {
+    while (listForDepth.length > 0) {
         const [actualVariable, ...remainingVariables] = listForDepth;
         listForDepth = remainingVariables;
 
@@ -257,7 +261,7 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
         }
 
         heapValue = getUpdateForHeapV(variable, actualVariable, heapValue, VariableMapper.toValue(actualVariable));
-    } while (listForDepth.length > 0);
+    };
 
     return rawHeapValues.concat({
         ref: variable.variablesReference,
@@ -265,6 +269,36 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
         name: variable.type,
         value: heapValue
     } as RawHeapValue);
+}
+
+async function createHashMapHeapValues(variable: Variable, session: DebugSession): Promise<[HeapValue, Array<RawHeapValue>]> {
+    const nodes = await variablesRequest(session, variable.variablesReference);
+    let mapOfHashMapValues = new Map<string, Value>();
+    for (const node of nodes) {
+        const values = await variablesRequest(session, node.variablesReference);
+
+        const key = values[0].value.split("\"")[1];
+        const value = VariableMapper.toValue({
+            type: 'str',
+            value: values[0].value.split("\"")[3]
+        } as Variable);
+        mapOfHashMapValues.set(key, value);
+    };
+
+    const rawHeapValue: RawHeapValue = {
+        ref: variable.variablesReference,
+        type: 'dict',
+        name: variable.type,
+        value: mapOfHashMapValues
+    } as RawHeapValue;
+
+    return [
+        {
+            type: 'map',
+            mapType: variable.type,
+            value: mapOfHashMapValues,
+        }, Array.of(rawHeapValue)
+    ] as [HeapValue, Array<RawHeapValue>];
 }
 
 function isSpecialCase(variable: Variable, actualVariable: Variable): boolean {

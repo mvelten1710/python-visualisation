@@ -70,6 +70,9 @@ function objectItem(name: string, value: HeapValue): string {
     case 'class':
       headline = value.type + ' ' + value.value.className;
       break;
+    case 'map':
+      headline = value.mapType;
+      break;
     default:
       headline = value.type;
   }
@@ -86,6 +89,7 @@ function heapValue(name: string, heapValue: HeapValue): string {
   let result = '';
   switch (heapValue.type) {
     case 'dict':
+    case 'map':
       const dictKeys = Array.from(Object.keys(heapValue.value));
       const dictValues = Array.from(Object.values(heapValue.value));
       result = `
