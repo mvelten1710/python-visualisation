@@ -2,7 +2,6 @@ import stringify from 'stringify-json';
 import { ExtensionContext, Uri, debug, commands } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
 import { Variables } from '../constants';
-import { setContextState } from '../utils';
 import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 import * as FileHandler from './FileHandler';
 import Completer from '../Completer';
@@ -73,4 +72,8 @@ async function initializeAdapterForActiveDebugSession(language: SupportedLanguag
     return await debug.activeDebugSession?.customRequest('initialize', {
         adapterID: language.toString,
     });
+}
+
+async function setContextState(context: ExtensionContext, key: string, value: any): Promise<void> {
+    return await context.workspaceState.update(key, value);
 }

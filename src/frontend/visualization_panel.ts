@@ -1,11 +1,7 @@
 import * as vscode from 'vscode';
 import { currentLineExecuteHighlightType, nextLineExecuteHighlightType } from '../constants';
-import {
-  backendToFrontend,
-  createDecorationOptions,
-  getOpenEditors
-} from '../utils';
 import path = require('path');
+import { HTMLGenerator } from './HTMLGenerator';
 
 const FRONTEND_RESOURCE_PATH = 'src/frontend/resources';
 
@@ -18,7 +14,7 @@ export class VisualizationPanel {
   private _traceIndex: number;
 
   private constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
-    this._trace = trace.map(backendToFrontend);
+    this._trace = (new HTMLGenerator(trace)).generateHTML();
     this._traceIndex = 0;
     const panel = vscode.window.createWebviewPanel(
       'programflow-visualization',
@@ -144,7 +140,7 @@ export class VisualizationPanel {
   private updateLineHighlight(remove: boolean = false) {
     // Can be undefined if no editor has focus
     // FIXME: Better editor selection for line highlighting
-    const openEditors = getOpenEditors();
+    const openEditors = this.getOpenEditors();
     if (openEditors.length !== 1) { return; }
     const editor = openEditors[0];
 
@@ -176,7 +172,7 @@ export class VisualizationPanel {
   private setEditorDecorations(editor: vscode.TextEditor, highlightType: vscode.TextEditorDecorationType, line: number) {
     editor.setDecorations(
       highlightType,
-      createDecorationOptions(
+      this.createDecorationOptions(
         new vscode.Range(new vscode.Position(line, 0), new vscode.Position(line, 999))
       )
     );
@@ -208,7 +204,7 @@ export class VisualizationPanel {
   }
 
   private async postMessagesToWebview(...args: string[]) {
-    args.forEach(async (message) => {
+    for (const message of args) {
       switch (message) {
         case 'updateButtons':
           const nextActive = this._traceIndex < this._trace.length - 1;
@@ -229,6 +225,18 @@ export class VisualizationPanel {
           });
           break;
       }
-    });
+    };
+  }
+
+  private getOpenEditors(): readonly vscode.TextEditor[] {
+    return vscode.window.visibleTextEditors;
+  }
+
+  private createDecorationOptions(range: vscode.Range): vscode.DecorationOptions[] {
+    return [
+      {
+        range: range,
+      },
+    ];
   }
 }

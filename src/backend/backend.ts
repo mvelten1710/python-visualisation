@@ -1,13 +1,11 @@
 import { Md5 } from 'ts-md5';
 import * as vscode from 'vscode';
 import { Variables } from '../constants';
-import {
-  getContextState, startFrontend,
-} from '../utils';
 import * as FileHandler from './FileHandler';
 import { TraceGenerator } from './TraceGenerator';
 import * as ErrorMessages from '../ErrorMessages';
 import stringify from 'stringify-json';
+import { VisualizationPanel } from '../frontend/visualization_panel';
 
 export async function initExtension(
   inTestingState: boolean,
@@ -56,4 +54,16 @@ export async function initExtension(
   }
 
   return backendTrace;
+}
+
+async function getContextState<T>(context: vscode.ExtensionContext, key: string): Promise<T | undefined> {
+  return await context.workspaceState.get<T>(key);
+}
+
+async function startFrontend(
+  id: string,
+  context: vscode.ExtensionContext,
+  trace: string
+): Promise<VisualizationPanel | undefined> {
+  return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
 }
