@@ -10,6 +10,8 @@ export const ERR_FILENAME_UNDEFINED = 'The passed filename variable was undefine
 
 export const ERR_TRACE_GENERATE = "Backend Trace couldn't be generated!";
 
+export const ERR_TRACE_LOAD = "Backend Trace couldn't be loaded!";
+
 export const ERR_INIT_FRONTEND = "Frontend couldn't be initialized!";
 
 export const ERR_EVALUATE_LANGUAGE = "The language of the file is not supported!";

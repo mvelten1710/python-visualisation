@@ -1,9 +1,7 @@
-import stringify from 'stringify-json';
-import { ExtensionContext, Uri, debug, commands } from 'vscode';
+import { Uri, debug, commands } from 'vscode';
 import * as ErrorMessages from '../ErrorMessages';
-import { Variables } from '../constants';
 import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
-import * as FileHandler from './FileHandler';
+import * as FileHandler from '../FileHandler';
 import Completer from '../Completer';
 
 export class TraceGenerator {
@@ -11,15 +9,11 @@ export class TraceGenerator {
     file: Uri;
     language: SupportedLanguages;
     private fileContent: string;
-    private context: ExtensionContext;
-    private hash: string;
     private inTestingState: boolean;
 
-    constructor(file: Uri, fileContent: string, context: ExtensionContext, hash: string, inTestingState: boolean, language: SupportedLanguages) {
+    constructor(file: Uri, fileContent: string, inTestingState: boolean, language: SupportedLanguages) {
         this.file = file;
         this.fileContent = fileContent;
-        this.context = context;
-        this.hash = hash;
         this.language = language;
         this.inTestingState = inTestingState;
     }
@@ -52,17 +46,6 @@ export class TraceGenerator {
             await FileHandler.deleteFile(tempFile);
             await commands.executeCommand('workbench.action.closeActiveEditor');
         }
-        await FileHandler.createBackendTraceOutput(this.backendTrace, this.file);
-        await setContextState(
-            this.context,
-            Variables.HASH_KEY + this.file.fsPath,
-            this.hash
-        );
-        await setContextState(
-            this.context,
-            Variables.TRACE_KEY + this.file.fsPath,
-            stringify(this.backendTrace)
-        );
 
         return this.backendTrace;
     }
@@ -72,8 +55,4 @@ async function initializeAdapterForActiveDebugSession(language: SupportedLanguag
     return await debug.activeDebugSession?.customRequest('initialize', {
         adapterID: language.toString,
     });
-}
-
-async function setContextState(context: ExtensionContext, key: string, value: any): Promise<void> {
-    return await context.workspaceState.update(key, value);
 }

@@ -1,69 +1,53 @@
-import { Md5 } from 'ts-md5';
-import * as vscode from 'vscode';
+import { ExtensionContext, Uri } from 'vscode';
 import { Variables } from '../constants';
-import * as FileHandler from './FileHandler';
+import * as FileHandler from '../FileHandler';
 import { TraceGenerator } from './TraceGenerator';
 import * as ErrorMessages from '../ErrorMessages';
 import stringify from 'stringify-json';
-import { VisualizationPanel } from '../frontend/visualization_panel';
 
-export async function initExtension(
+export async function startBackend(
   inTestingState: boolean,
-  context: vscode.ExtensionContext,
-  file: vscode.Uri | undefined
-): Promise<BackendTrace | undefined> {
-  if (!file) {
-    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_FILENAME_UNDEFINED, inTestingState);
-    return;
-  }
-
-  const content = await FileHandler.getContentOf(file);
-  const newHash = Md5.hashStr(content);
-  const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
-  const trackerId = `${newHash}#${file.fsPath}`;
-
+  context: ExtensionContext,
+  file: Uri,
+  content: string,
+  fileHash: string
+): Promise<Try> {
   const language = FileHandler.extractLanguage(file);
   if (!language) {
-    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_EVALUATE_LANGUAGE, inTestingState);
-    return;
+    return failure(ErrorMessages.ERR_EVALUATE_LANGUAGE);
   }
-  const traceGenerator = new TraceGenerator(file, content, context, newHash, inTestingState, language);
-  let trace: string | undefined;
+  const traceGenerator = new TraceGenerator(file, content, inTestingState, language);
   let backendTrace: BackendTrace | undefined;
 
-  if (inTestingState || oldHash !== newHash) {
-    backendTrace = await traceGenerator.generateTrace();
-    if (!backendTrace) {
-      await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE, inTestingState);
-      return;
-    }
-    trace = stringify(backendTrace);
-  } else {
-    trace = await getContextState<string>(
-      context,
-      Variables.TRACE_KEY + file.fsPath
-    );
-  }
-  if (!trace) {
-    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_INIT_FRONTEND, inTestingState);
-    return;
+  backendTrace = await traceGenerator.generateTrace();
+  if (!backendTrace) {
+    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE, inTestingState);
+    return failure(ErrorMessages.ERR_TRACE_GENERATE);
   }
 
-  if (!inTestingState) {
-    await startFrontend(trackerId, context, trace); // TODO trace as BackendTrace not string
-  }
+  await FileHandler.createBackendTraceOutput(backendTrace, file);
+  await setContextState(
+    context,
+    Variables.HASH_KEY + file.fsPath,
+    fileHash
+  );
+  await setContextState(
+    context,
+    Variables.TRACE_KEY + file.fsPath,
+    stringify(backendTrace)
+  );
 
-  return backendTrace;
+  return success(backendTrace);
 }
 
-async function getContextState<T>(context: vscode.ExtensionContext, key: string): Promise<T | undefined> {
-  return await context.workspaceState.get<T>(key);
+async function setContextState(context: ExtensionContext, key: string, value: any): Promise<void> {
+  return await context.workspaceState.update(key, value);
 }
 
-async function startFrontend(
-  id: string,
-  context: vscode.ExtensionContext,
-  trace: string
-): Promise<VisualizationPanel | undefined> {
-  return VisualizationPanel.getVisualizationPanel(id, context, JSON.parse(trace));
+function failure(errorMessage: string): Failure {
+  return { errorMessage: errorMessage } as Failure;
+}
+
+function success(value: any): Success {
+  return { result: value } as Success;
 }

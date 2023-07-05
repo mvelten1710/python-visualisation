@@ -8,6 +8,13 @@ type SupportedLanguages = 'python' | 'java';
  */
 type DebuggerStep = 'stepIn' | 'continue' | 'nextStep';
 
+/** 
+ * For better readable code
+*/
+type Try = Success | Failure;
+type Success = { result: any };
+type Failure = { errorMessage: string };
+
 // State Types for the Frontend
 type FrontendTrace = Array<FrontendTraceElem>;
 type FrontendTraceElem = [number, string, string];

@@ -72,7 +72,6 @@ export class VisualizationPanel {
   }
 
   public static async getVisualizationPanel(
-    id: string,
     context: vscode.ExtensionContext,
     trace: BackendTrace
   ): Promise<VisualizationPanel | undefined> {
