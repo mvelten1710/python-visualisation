@@ -21,7 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
         const fileHash = Md5.hashStr(content);
 
         let backendTrace: BackendTrace | undefined;
-        if (isInTestingState || (await traceAlreadyExists(file, context, fileHash))) {
+        if (isInTestingState || !(await traceAlreadyExists(file, context, fileHash))) {
           const result = await startBackend(isInTestingState, context, file, content, fileHash);
           if ((result as Failure).errorMessage !== undefined) {
             await ErrorMessages.showSpecificErrorMessage((result as Failure).errorMessage, isInTestingState);
@@ -55,6 +55,7 @@ export function deactivate() {}
 
 async function traceAlreadyExists(file: vscode.Uri, context: vscode.ExtensionContext, fileHash: string): Promise<boolean> {
   const oldHash = await getContextState<string>(context, Variables.HASH_KEY + file.fsPath);
+  const content = await getContextState<string>(context, Variables.TRACE_KEY + file.fsPath);
   return oldHash === fileHash;
 }
 
