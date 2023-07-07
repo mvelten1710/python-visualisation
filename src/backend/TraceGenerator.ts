@@ -47,7 +47,7 @@ export class TraceGenerator {
             await commands.executeCommand('workbench.action.closeActiveEditor');
         }
 
-        return this.backendTrace;
+        return this.backendTrace.filter((outerTraceElement, outerIndex, backendTrace) => !backendTrace.filter((innerTraceElement, innerIndex) => JSON.stringify(outerTraceElement, replacer) === JSON.stringify(innerTraceElement, replacer) && innerIndex < outerIndex).length);
     }
 }
 
@@ -55,4 +55,15 @@ async function initializeAdapterForActiveDebugSession(language: SupportedLanguag
     return await debug.activeDebugSession?.customRequest('initialize', {
         adapterID: language.toString,
     });
+}
+
+function replacer(key: any, value: any) {
+    if (value instanceof Map) {
+        return {
+            dataType: 'Map',
+            value: Array.from(value.entries()),
+        };
+    } else {
+        return value;
+    }
 }
