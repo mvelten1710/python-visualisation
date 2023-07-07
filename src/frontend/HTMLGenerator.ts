@@ -131,7 +131,7 @@ export class HTMLGenerator {
         return `
             <div class="row">
                 <div class="box box-content-dict" ${key.type === 'ref' ? `id="${this.uniqueId}startPointer${key.value}"` : ''}>
-                    ${key.type === 'ref' ? '' : key.value}
+                    ${key.type === 'ref' ? '' : key.value ? key.value : key}
                 </div>
                 <div class="box box-content-dict" ${value.type === 'ref' ? `id="${this.uniqueId}startPointer${value.value}"` : ''}>
                     ${value.type === 'ref' ? '' : value.value}
