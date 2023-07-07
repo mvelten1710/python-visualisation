@@ -60,7 +60,6 @@ export async function variablesRequest(session: DebugSession, id: number): Promi
 export function createStackElemFrom(stackFrame: StackFrame, variables: Variable[]): StackElem {
     return {
         frameName: stackFrame.name,
-        frameId: stackFrame.id,
         locals: new Map<string, Value>(
             variables.map((variable) => {
                 return [variable.name, VariableMapper.toValue(variable)];

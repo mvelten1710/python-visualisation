@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { TraceGenerator } from './TraceGenerator';
 import Completer from '../Completer';
-import {createBackendTraceElem, debuggerStep} from './BackendSession';
+import { createBackendTraceElem, debuggerStep } from './BackendSession';
 import { ILanguageBackendSession } from './ILanguageBackendSession';
 import { pythonBackendSession } from './specificBackendSession/PythonBackendSession';
 import { javaBackendSession } from './specificBackendSession/JavaBackendSession';
@@ -19,11 +19,13 @@ export function registerDebugAdapterTracker(
                             const backendTraceElement = await createBackendTraceElem(session, threadId, getLanguageBackendSession(traceGenerator.language));
 
                             if (debuggerStep === 'continue') {
-                                completer.complete([0, 'signal']);
+                                completer.complete([0, 'signal']); // TODO try vscode.debug.stopDebugging
                                 await continueRequest(session, threadId);
                             } else if (debuggerStep === 'nextStep') {
                                 traceGenerator.backendTrace.push(backendTraceElement);
                                 await nextRequest(session, threadId);
+                            } else if (debuggerStep === 'stepOut') {
+                                await stepOutRequest(session, threadId);
                             } else {
                                 traceGenerator.backendTrace.push(backendTraceElement);
                                 await stepInRequest(session, threadId);

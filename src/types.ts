@@ -6,7 +6,7 @@ type SupportedLanguages = 'python' | 'java';
 /**
  * Supported steps for debugger
  */
-type DebuggerStep = 'stepIn' | 'continue' | 'nextStep';
+type DebuggerStep = 'stepIn' | 'stepOut' | 'continue' | 'nextStep';
 
 /** 
  * For better readable code
@@ -60,7 +60,6 @@ type Value =
 
 type StackElem = {
   frameName: string;
-  frameId: number;
   locals: Map<string, Value>;
 };
 
@@ -74,7 +73,6 @@ type HeapValue =
   | { type: 'instance'; name: string, value: Map<string, Value> }
   | { type: 'wrapper'; name: string; value: Value | Array<Value> };
 // wrapper type -> frontend list elements dodge
- 
 
 type ClassValue = {
   className: string;

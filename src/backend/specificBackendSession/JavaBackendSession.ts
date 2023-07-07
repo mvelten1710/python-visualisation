@@ -4,6 +4,7 @@ import * as VariableMapper from "../VariableMapper";
 import { ILanguageBackendSession } from "../ILanguageBackendSession";
 
 enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Double', 'BigDecimal' }
+let lastVariables: string[] = [];
 
 export const javaBackendSession: ILanguageBackendSession = {
     createStackAndHeap: async (
@@ -13,16 +14,20 @@ export const javaBackendSession: ILanguageBackendSession = {
     ): Promise<[Array<StackElem>, Map<Address, HeapValue>, DebuggerStep]> => {
         let stack = Array<StackElem>();
         let heap = new Map<Address, HeapValue>();
-        let debuggerStep: DebuggerStep = 'nextStep';
+        let debuggerStep: DebuggerStep = 'stepIn';
 
         if (stackFrames.filter(frame => frame.name.includes('.main(')).length <= 0) {
             return [stack, heap, 'continue'];
         }
 
+        if (stackFrames.filter(frame => frame.source === undefined).length > 0) {
+            return [stack, heap, 'stepOut'];
+        }
+
         for (const stackFrame of stackFrames) {
             const scopes = await scopesRequest(session, stackFrame.id);
             const [locals, globals] = [scopes[0], scopes[1]];
-            const localsVariables = await variablesRequest(session, locals.variablesReference);
+            const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter(variable => variable.name !== '->loadClass()');
 
             localsVariables.forEach(variable => {
                 const reference = Number(variable.value.split("@")[1]);
@@ -36,9 +41,10 @@ export const javaBackendSession: ILanguageBackendSession = {
             localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
             ));
 
-            if (localsVariables.length > 1 && (!Object.values(BasicTypes).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(NumberClasses).includes(localsVariables.at(-1)!.type.split('[')[0]) && !Object.values(["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]).includes(localsVariables.at(-1)!.type.split('[')[0]))) {
-                debuggerStep = 'stepIn'; // TODO remember old and compare to new to determine if necessary, only when class
+            if (localsVariables.length > 1 && isKnownType(localsVariables.filter(variable => lastVariables && !lastVariables.includes(JSON.stringify(variable))).at(-1)!.type)) {
+                debuggerStep = 'nextStep';
             }
+            lastVariables = localsVariables.map(variable => JSON.stringify(variable));
 
             const primitiveVariables = localsVariables.filter((variable) =>
                 variable.variablesReference === 0
@@ -99,7 +105,9 @@ async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, he
 
 async function createHeapVariable(variable: Variable, duplicateReferencesMap: Map<number, number>, session: DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
     let rawHeapValues = new Array<RawHeapValue>();
-    let list = new Array<Value>();
+    const isClass = variable.name === 'this' || !isKnownType(variable.type);
+
+    let list = isClass ? new Map<string, Value>() : new Array<Value>();
 
     const stringRefKey = await updateDuplicateReferencesMap(duplicateReferencesMap, variable, session);
     variable['variablesReference'] = getRef(variable, duplicateReferencesMap, stringRefKey);
@@ -110,6 +118,10 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
 
     if (variable.type === 'HashMap') {
         return await createHashMapHeapValues(variable, session);
+    }
+
+    if (variable.type === 'Class') {
+        return;
     }
 
     let listForDepth = await variablesRequest(session, variable.variablesReference);
@@ -149,19 +161,25 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
             rawHeapValues = rawHeapValues.concat(elem);
         }
 
-        (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
+        isClass
+            ? (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
+            : (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
     } while (listForDepth.length > 0);
 
     const heapValue = {
-        type: isWrapper(variable) ? 'wrapper' : variable.type,
+        type: isWrapper(variable) ? 'wrapper' : isClass ? 'class' : variable.type,
         name: variable.type,
-        value: list,
+        value: isClass ? { className: variable.type, properties: list } : list,
     };
 
     return [
         heapValue,
         rawHeapValues,
     ] as [HeapValue, Array<RawHeapValue>];
+}
+
+function isKnownType(type: string): boolean {
+    return [...Object.values(BasicTypes), ...Object.values(NumberClasses), ...["String", "StringBuffer", "StringBuilder", "LinkedList", "ArrayList", "Character", "Boolean", "HashMap", "HashSet"]].includes(type.split('[')[0]);
 }
 
 async function updateDuplicateReferencesMap(duplicateReferencesMap: Map<number, number>, variable: Variable, session: DebugSession) {

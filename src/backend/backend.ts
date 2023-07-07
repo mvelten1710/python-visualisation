@@ -21,7 +21,6 @@ export async function startBackend(
 
   backendTrace = await traceGenerator.generateTrace();
   if (!backendTrace) {
-    await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TRACE_GENERATE, inTestingState);
     return failure(ErrorMessages.ERR_TRACE_GENERATE);
   }
 
