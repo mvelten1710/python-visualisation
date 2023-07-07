@@ -33,7 +33,7 @@ type Address = number;
 
 type HeapType = 'list' | 'tuple' | 'set' | 'dict' | 'class' | 'wrapper';
 // java: 'String[]' type
-type HeapV = Array<Value> | Map<any, Value> | ClassValue;
+type HeapV = Array<Value> | Map<any, Value> | ClassValue | Array<[Value, Value]>;
 
 type RawHeapValue = {
   ref: Address;
@@ -68,7 +68,7 @@ type HeapValue =
   | { type: 'tuple'; value: Array<Value> }
   | { type: 'set'; value: Array<Value> }
   | { type: 'dict'; value: Map<any, Value> }
-  | { type: 'map'; mapType: string, value: Map<any, Value> }
+  | { type: 'map'; mapType: string, value: Array<[Value, Value]> }
   | { type: 'class'; value: ClassValue }
   | { type: 'instance'; name: string, value: Map<string, Value> }
   | { type: 'wrapper'; name: string; value: Value | Array<Value> };

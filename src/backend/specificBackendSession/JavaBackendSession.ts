@@ -156,7 +156,7 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
 
         const variablesReference = actualVariable.variablesReference;
 
-        if (variablesReference) { // TODO Variablen auflösung über das @ im namen
+        if (variablesReference) {
             const elem = await createInnerHeapVariable(actualVariable, duplicateReferencesMap, session, referenceMap);
             rawHeapValues = rawHeapValues.concat(elem);
         }
@@ -289,33 +289,42 @@ async function createInnerHeapVariable(variable: Variable, duplicateReferencesMa
     } as RawHeapValue);
 }
 
-async function createHashMapHeapValues(variable: Variable, session: DebugSession): Promise<[HeapValue, Array<RawHeapValue>]> {
+async function createHashMapHeapValues(variable: Variable, session: DebugSession): Promise<[HeapValue, Array<RawHeapValue>]> { // TODO refactor
     const nodes = await variablesRequest(session, variable.variablesReference);
-    let mapOfHashMapValues = new Map<string, Value>();
+    let mapOfHashMapValues: Array<[Value, Value]> = [];
+    let rawHeapValues: Array<RawHeapValue> = [];
     for (const node of nodes) {
         const values = await variablesRequest(session, node.variablesReference);
+        const keyAndValues = await variablesRequest(session, values[0].variablesReference);
+        const [key, value] = keyAndValues[0].name === 'key' ? [keyAndValues[0], keyAndValues[1]] : [keyAndValues[1], keyAndValues[0]];
+        const [keyIsString, valueIsString] = [key.type === 'String', value.type === 'String'];
 
-        const key = values[0].value.split("\"")[1];
-        const value = VariableMapper.toValue({
-            type: 'str',
-            value: values[0].value.split("\"")[3]
-        } as Variable);
-        mapOfHashMapValues.set(key, value);
+        const realKey = keyIsString ? createStackedStringHeapValue(key) : await createInnerHeapVariable(key, new Map(), session, new Map());
+        const realValue = valueIsString ? createStackedStringHeapValue(value) : await createInnerHeapVariable(value, new Map(), session, new Map());
+
+        rawHeapValues = rawHeapValues.concat(
+            keyIsString ? (realKey as [Value, RawHeapValue])[1] : realKey as RawHeapValue[], valueIsString ? (realValue as [Value, RawHeapValue])[1] : realValue as RawHeapValue[]
+        );
+
+        mapOfHashMapValues.push([
+            keyIsString ? (realKey as [Value, RawHeapValue])[0] : VariableMapper.toValue(key),
+            valueIsString ? (realValue as [Value, RawHeapValue])[0] : VariableMapper.toValue(value)
+            ]);
     };
 
-    const rawHeapValue: RawHeapValue = {
+    rawHeapValues.push({
         ref: variable.variablesReference,
         type: 'dict',
         name: variable.type,
         value: mapOfHashMapValues
-    } as RawHeapValue;
+    });
 
     return [
         {
             type: 'map',
             mapType: variable.type,
             value: mapOfHashMapValues,
-        }, Array.of(rawHeapValue)
+        }, rawHeapValues
     ] as [HeapValue, Array<RawHeapValue>];
 }
 

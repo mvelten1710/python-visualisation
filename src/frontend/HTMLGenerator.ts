@@ -62,8 +62,8 @@ export class HTMLGenerator {
         switch (heapValue.type) {
             case 'dict':
             case 'map':
-                const dictKeys = Array.from(Object.keys(heapValue.value));
-                const dictValues = Array.from(Object.values(heapValue.value));
+                const dictKeys = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[0]));
+                const dictValues = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[1]));
                 result = `
                     <div class="column" id="heapEndPointer${name}">
                         ${dictKeys.map((key, index) => this.dictValue(key, dictValues[index])).join('')}
@@ -130,8 +130,8 @@ export class HTMLGenerator {
         this.uniqueId++;
         return `
             <div class="row">
-                <div class="box box-content-dict">
-                    ${key}
+                <div class="box box-content-dict" ${key.type === 'ref' ? `id="${this.uniqueId}startPointer${key.value}"` : ''}>
+                    ${key.type === 'ref' ? '' : key.value}
                 </div>
                 <div class="box box-content-dict" ${value.type === 'ref' ? `id="${this.uniqueId}startPointer${value.value}"` : ''}>
                     ${value.type === 'ref' ? '' : value.value}
