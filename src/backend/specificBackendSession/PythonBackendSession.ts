@@ -10,16 +10,16 @@ export const pythonBackendSession: ILanguageBackendSession = {
     ): Promise<[Array<StackElem>, Map<Address, HeapValue>, DebuggerStep]> => {
         let stack = Array<StackElem>();
         let heap = new Map<Address, HeapValue>();
-        let debuggerStep: DebuggerStep = 'nextStep';
+        let debuggerStep: DebuggerStep = 'stepIn';
 
         for (const stackFrame of stackFrames) {
             const scopes = await scopesRequest(session, stackFrame.id);
             const [locals, globals] = [scopes[0], scopes[1]];
             const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)')); // FIXME return wieder dazu als fehlender Schritt?!
 
-            if (localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type))) {
-                debuggerStep = 'stepIn'; // TODO potentiell einfach reversen -> wenn das alles nicht so ist dann next sonst default stepin
-            }
+            /*if (!(localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type)))) {
+                debuggerStep = 'nextStep'; // TODO potentiell einfach reversen -> wenn das alles nicht so ist dann next sonst default stepin
+            }*/
 
             const primitiveVariables = localsVariables.filter((variable) =>
                 variable.variablesReference === 0
