@@ -6,7 +6,7 @@ type SupportedLanguages = 'python' | 'java';
 /**
  * Supported steps for debugger
  */
-type DebuggerStep = 'stepIn' | 'stepOut' | 'continue' | 'nextStep';
+type DebuggerStep = 'stepIn' | 'stepOut' | 'continue' | 'next';
 
 /** 
  * For better readable code
@@ -47,6 +47,7 @@ type Value =
   | { type: 'int'; value: number }
   | { type: 'float'; value: number }
   | { type: 'str'; value: string }
+  | { type: 'none'; value: string }
   | { type: 'bool'; value: string }
   | { type: 'ref'; value: Address }
   /* Java addition */
