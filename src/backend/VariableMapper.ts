@@ -14,6 +14,10 @@ export function toValue(variable: Variable): Value {
             };
         /* Python specific */
         case 'NoneType':
+            return {
+                type: 'none',
+                value: 'None',
+            };
         case 'str':
         /* Java specific */
             return {
