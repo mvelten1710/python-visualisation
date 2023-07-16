@@ -41,8 +41,13 @@ export const javaBackendSession: ILanguageBackendSession = {
             localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
             ));
 
+            // TODO wenn nicht 2 stackframe keine function = next? ODER wenn -> dann ja sonst nein bzw spezielles -> ausblenden wie loadClass
+            /*if (localsVariables.filter(variable => variable.name.includes("->")).length > 0 && stackFrames.length >= 2) {
+                return [stack, heap, 'stepOut'];
+            }*/
+
             if (localsVariables.length > 1 && isKnownType(localsVariables.filter(variable => lastVariables && !lastVariables.includes(JSON.stringify(variable))).at(-1)!.type)) {
-                debuggerStep = 'nextStep';
+                debuggerStep = 'next';
             }
             lastVariables = localsVariables.map(variable => JSON.stringify(variable));
 
@@ -76,7 +81,6 @@ export const javaBackendSession: ILanguageBackendSession = {
         return [stack, heap, debuggerStep];
     }
 };
-
 
 function getRef(variable: Variable, duplicateReferencesMap: Map<number, number>, stringRefKey?: number): number {
     const reference = stringRefKey ? stringRefKey : Number(variable.value.split("@")[1]);
@@ -167,7 +171,7 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
     } while (listForDepth.length > 0);
 
     const heapValue = {
-        type: isWrapper(variable) ? 'wrapper' : isClass ? 'class' : variable.type,
+        type: getCorrectHeapType(variable, isClass),
         name: variable.type,
         value: isClass ? { className: variable.type, properties: list } : list,
     };
@@ -176,6 +180,16 @@ async function createHeapVariable(variable: Variable, duplicateReferencesMap: Ma
         heapValue,
         rawHeapValues,
     ] as [HeapValue, Array<RawHeapValue>];
+}
+
+function getCorrectHeapType(variable: Variable, isClass: boolean): string {
+    if (isWrapper(variable)) {
+        return 'wrapper';
+    } else if (isClass) {
+        return 'class';
+    } else {
+        return variable.type;
+    }
 }
 
 function isKnownType(type: string): boolean {
@@ -331,9 +345,9 @@ async function createHashMapHeapValues(variable: Variable, session: DebugSession
 function isSpecialCase(variable: Variable, actualVariable: Variable): boolean {
     return actualVariable.value.includes("StringBuffer") ||
         actualVariable.value.includes("StringBuilder") ||
-        (actualVariable.value.includes("Character") && !variable.value.includes("["))
+        (variable.value.split("@")[0].includes("Character") && !variable.value.includes("["))
         ||
-        (actualVariable.value.includes("Boolean") && !variable.value.includes("["))
+        (variable.value.split("@")[0].includes("Boolean") && !variable.value.includes("["))
         ||
         Object.values(NumberClasses).includes(variable.value.split("@")[0])
         ;
