@@ -4,7 +4,7 @@ import { ILanguageBackendSession } from "./ILanguageBackendSession";
 
 export enum BasicTypes { 'int', 'float', 'str', 'bool', 'ref', 'byte', 'short', 'long', 'double', 'dict', 'list', 'tuple', 'set', 'class', 'type' };
 
-export let debuggerStep = 'nextStep';
+export let debuggerStep: DebuggerStep = 'next';
 
 export async function createBackendTraceElem(
     session: DebugSession,

@@ -20,16 +20,15 @@ export function registerDebugAdapterTracker(
 
                             if (debuggerStep === 'continue') {
                                 completer.complete([0, 'signal']); // TODO try vscode.debug.stopDebugging
-                                await continueRequest(session, threadId);
-                            } else if (debuggerStep === 'nextStep') {
+                            } else if (debuggerStep === 'next') {
                                 traceGenerator.backendTrace.push(backendTraceElement);
-                                await nextRequest(session, threadId);
                             } else if (debuggerStep === 'stepOut') {
-                                await stepOutRequest(session, threadId);
+                                // do nothing
                             } else {
                                 traceGenerator.backendTrace.push(backendTraceElement);
-                                await stepInRequest(session, threadId);
                             }
+                            await stepRequest(debuggerStep, session, threadId);
+
                         }
                     } else if (message.event === 'exception') {
                         // TODO: Create Viz from partial BackendTrace and add exeption into it if not already present
@@ -56,26 +55,8 @@ export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLa
     };
 }
 
-async function continueRequest(session: vscode.DebugSession, threadId: number) {
-    await session.customRequest('continue', {
-        threadId: threadId,
-    });
-}
-
-async function stepInRequest(session: vscode.DebugSession, threadId: number) {
-    await session.customRequest('stepIn', {
-        threadId: threadId,
-    });
-}
-
-async function stepOutRequest(session: vscode.DebugSession, threadId: number) {
-    await session.customRequest('stepOut', {
-        threadId: threadId,
-    });
-}
-
-async function nextRequest(session: vscode.DebugSession, threadId: number) {
-    await session.customRequest('next', {
+async function stepRequest(step: DebuggerStep, session: vscode.DebugSession, threadId: number) {
+    await session.customRequest(step, {
         threadId: threadId,
     });
 }
