@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as VariableMapper from "../VariableMapper";
 import { scopesRequest, variablesRequest, createStackElemFrom, BasicTypes } from "../BackendSession";
 import { ILanguageBackendSession } from '../ILanguageBackendSession';
+import { linesWithClass } from '../TraceGenerator';
 
 export const pythonBackendSession: ILanguageBackendSession = {
     createStackAndHeap: async (
@@ -17,9 +18,9 @@ export const pythonBackendSession: ILanguageBackendSession = {
             const [locals, globals] = [scopes[0], scopes[1]];
             const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)')); // FIXME return wieder dazu als fehlender Schritt?!
 
-            /*if (!(localsVariables.length > 0 && (localsVariables.at(-1)!.name === 'class variables' || !Object.values(BasicTypes).includes(localsVariables.at(-1)!.type)))) {
-                debuggerStep = 'nextStep'; // TODO potentiell einfach reversen -> wenn das alles nicht so ist dann next sonst default stepin
-            }*/
+            if (linesWithClass.includes(stackFrame.line)) {
+                debuggerStep = 'next';
+            }
 
             const primitiveVariables = localsVariables.filter((variable) =>
                 variable.variablesReference === 0

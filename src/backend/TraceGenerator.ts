@@ -4,6 +4,8 @@ import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAd
 import * as FileHandler from '../FileHandler';
 import Completer from '../Completer';
 
+export const linesWithClass: Array<number> = [];
+
 export class TraceGenerator {
     backendTrace: BackendTrace = [];
     file: Uri;
@@ -20,6 +22,9 @@ export class TraceGenerator {
 
     async generateTrace(): Promise<BackendTrace | undefined> {
         // PRE QUERIES
+        if (this.language === 'python') {
+            setLinesWithClass(this.fileContent);
+        }
         const tempFile = this.language === 'python' ? await FileHandler.duplicateFileAndExtendWithPass(this.file, this.fileContent) : this.file;
         if (!tempFile) {
             await ErrorMessages.showSpecificErrorMessage(ErrorMessages.ERR_TMP_FILE, this.inTestingState);
@@ -47,8 +52,20 @@ export class TraceGenerator {
             await commands.executeCommand('workbench.action.closeActiveEditor');
         }
 
-        return this.backendTrace.filter((outerTraceElement, outerIndex, backendTrace) => !backendTrace.filter((innerTraceElement, innerIndex) => JSON.stringify(outerTraceElement, replacer) === JSON.stringify(innerTraceElement, replacer) && innerIndex < outerIndex).length);
+        return this.language === 'java' ? filterUnnecessarySteps(this.backendTrace) : this.backendTrace;
     }
+}
+
+function setLinesWithClass(fileContent: string) {
+    fileContent.split("\n").forEach((line, index) => {
+        if (line.startsWith("class ")) {
+            linesWithClass.push(index + 1);
+        };
+    });
+}
+
+function filterUnnecessarySteps(trace: BackendTrace) {
+    return trace.filter((outerTraceElement, outerIndex, backendTrace) => !backendTrace.filter((innerTraceElement, innerIndex) => JSON.stringify(outerTraceElement, replacer) === JSON.stringify(innerTraceElement, replacer) && innerIndex < outerIndex).length);
 }
 
 async function initializeAdapterForActiveDebugSession(language: SupportedLanguages): Promise<Capabilities> {
