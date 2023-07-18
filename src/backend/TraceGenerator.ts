@@ -1,8 +1,8 @@
-import { Uri, debug, commands } from 'vscode';
-import * as ErrorMessages from '../ErrorMessages';
-import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
-import * as FileHandler from '../FileHandler';
+import { Uri, commands, debug } from 'vscode';
 import Completer from '../Completer';
+import * as ErrorMessages from '../ErrorMessages';
+import * as FileHandler from '../FileHandler';
+import { getDebugConfigurationFor, registerDebugAdapterTracker } from './DebugAdapterTracker';
 
 export const linesWithClass: Array<number> = [];
 
@@ -65,13 +65,11 @@ function setLinesWithClass(fileContent: string) {
 }
 
 function filterUnnecessarySteps(trace: BackendTrace) {
-    return trace.filter((outerTraceElement, outerIndex, backendTrace) => !backendTrace.filter((innerTraceElement, innerIndex) => JSON.stringify(outerTraceElement, replacer) === JSON.stringify(innerTraceElement, replacer) && innerIndex < outerIndex).length);
+    return trace.filter(duplicates).filter(notSameLine);
 }
 
-async function initializeAdapterForActiveDebugSession(language: SupportedLanguages): Promise<Capabilities> {
-    return await debug.activeDebugSession?.customRequest('initialize', {
-        adapterID: language.toString,
-    });
+function duplicates(outerTraceElement: BackendTraceElem, outerIndex: number, backendTrace: BackendTrace): boolean {
+    return !backendTrace.filter((innerTraceElement, innerIndex) => JSON.stringify(outerTraceElement, replacer) === JSON.stringify(innerTraceElement, replacer) && innerIndex < outerIndex).length;
 }
 
 function replacer(key: any, value: any) {
@@ -83,4 +81,17 @@ function replacer(key: any, value: any) {
     } else {
         return value;
     }
+}
+
+function notSameLine(traceElement: BackendTraceElem, index: number, backendTrace: BackendTrace): boolean {
+    if (index === 0) {
+        return true;
+    }
+    return traceElement.line !== backendTrace[index - 1].line;
+}
+
+async function initializeAdapterForActiveDebugSession(language: SupportedLanguages): Promise<Capabilities> {
+    return await debug.activeDebugSession?.customRequest('initialize', {
+        adapterID: language.toString,
+    });
 }

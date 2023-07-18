@@ -41,16 +41,6 @@ export const javaBackendSession: ILanguageBackendSession = {
             localsVariables.forEach(variable => variable['variablesReference'] = getRef(variable, duplicateReferencesMap
             ));
 
-            // TODO wenn nicht 2 stackframe keine function = next? ODER wenn -> dann ja sonst nein bzw spezielles -> ausblenden wie loadClass
-            /*if (localsVariables.filter(variable => variable.name.includes("->")).length > 0 && stackFrames.length >= 2) {
-                return [stack, heap, 'stepOut'];
-            }*/
-/*
-            if (localsVariables.length > 1 && isKnownType(localsVariables.filter(variable => lastVariables && !lastVariables.includes(JSON.stringify(variable))).at(-1)!.type)) {
-                debuggerStep = 'next';
-            }
-            lastVariables = localsVariables.map(variable => JSON.stringify(variable));
-*/
             const primitiveVariables = localsVariables.filter((variable) =>
                 variable.variablesReference === 0
             );
