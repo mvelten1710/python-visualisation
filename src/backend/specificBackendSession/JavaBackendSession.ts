@@ -4,7 +4,7 @@ import * as VariableMapper from "../VariableMapper";
 import { ILanguageBackendSession } from "../ILanguageBackendSession";
 
 enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Double', 'BigDecimal' }
-let lastVariables: string[] = [];
+// let lastVariables: string[] = [];
 
 export const javaBackendSession: ILanguageBackendSession = {
     createStackAndHeap: async (
@@ -45,12 +45,12 @@ export const javaBackendSession: ILanguageBackendSession = {
             /*if (localsVariables.filter(variable => variable.name.includes("->")).length > 0 && stackFrames.length >= 2) {
                 return [stack, heap, 'stepOut'];
             }*/
-
+/*
             if (localsVariables.length > 1 && isKnownType(localsVariables.filter(variable => lastVariables && !lastVariables.includes(JSON.stringify(variable))).at(-1)!.type)) {
                 debuggerStep = 'next';
             }
             lastVariables = localsVariables.map(variable => JSON.stringify(variable));
-
+*/
             const primitiveVariables = localsVariables.filter((variable) =>
                 variable.variablesReference === 0
             );
@@ -309,8 +309,8 @@ async function createHashMapHeapValues(variable: Variable, session: DebugSession
     let rawHeapValues: Array<RawHeapValue> = [];
     for (const node of nodes) {
         const values = await variablesRequest(session, node.variablesReference);
-        const keyAndValues = await variablesRequest(session, values[0].variablesReference);
-        const [key, value] = keyAndValues[0].name === 'key' ? [keyAndValues[0], keyAndValues[1]] : [keyAndValues[1], keyAndValues[0]];
+        const keyAndValue = await variablesRequest(session, values[0].variablesReference);
+        const [key, value] = keyAndValue[0].name === 'key' ? [keyAndValue[0], keyAndValue[1]] : [keyAndValue[1], keyAndValue[0]];
         const [keyIsString, valueIsString] = [key.type === 'String', value.type === 'String'];
 
         const realKey = keyIsString ? createStackedStringHeapValue(key) : await createInnerHeapVariable(key, new Map(), session, new Map());
