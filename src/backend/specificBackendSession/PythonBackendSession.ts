@@ -16,7 +16,7 @@ export const pythonBackendSession: ILanguageBackendSession = {
         for (const stackFrame of stackFrames) {
             const scopes = await scopesRequest(session, stackFrame.id);
             const [locals, globals] = [scopes[0], scopes[1]];
-            const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)')); // FIXME return wieder dazu als fehlender Schritt?!
+            const localsVariables = (await variablesRequest(session, locals.variablesReference)).filter((variable) => !variable.name.includes('(return)'));
 
             if (linesWithClass.includes(stackFrame.line)) {
                 debuggerStep = 'next';
@@ -82,15 +82,11 @@ async function getHeapOf(variables: Variable[], heap: Map<number, HeapValue>, he
 }
 
 async function createHeapVariable(variable: Variable, session: vscode.DebugSession, referenceMap: Map<number, Variable[]> = new Map()) {
-    let rawHeapValues = new Array<RawHeapValue>();
-    let nameOfInstance: string | undefined;
-    if (!Object.values(BasicTypes).includes(variable.type)) {
-        nameOfInstance = variable.type;
-        variable.type = 'instance';
-    }
-    const isClass = variable.type === 'type';
-    const isClassOrDictOrInstance = isClass || variable.type === 'dict' || nameOfInstance;
-    let list = isClassOrDictOrInstance ? new Map<string, Value>() : new Array<Value>();
+    let rawHeapValues: Array<RawHeapValue> = new Array<RawHeapValue>();
+    let nameOfInstance: string | undefined = ifIsInstanceGetName(variable);
+    const isClass: boolean = variable.type === 'type';
+    const isMapType: boolean = isClass || variable.type === 'dict' || nameOfInstance !== undefined;
+    let list = isMapType ? new Map<string, Value>() : new Array<Value>();
     let listForDepth = await variablesRequest(session, variable.variablesReference);
     referenceMap.set(variable.variablesReference, listForDepth);
 
@@ -108,21 +104,14 @@ async function createHeapVariable(variable: Variable, session: vscode.DebugSessi
             rawHeapValues = rawHeapValues.concat(elem);
         }
 
-        isClassOrDictOrInstance
-            ? (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
-            : (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
+        addNewElementToList(isMapType, list, actualVariable);
     } while (listForDepth.length > 0);
 
-    const heapValue = variable.type === 'instance'
-        ? {
-            type: isClass ? 'class' : variable.type,
-            name: nameOfInstance, // TODO maybe geht auch dauerhaft so
-            value: isClass ? { className: variable.name, properties: list } : list,
-        }
-        : {
-            type: isClass ? 'class' : variable.type,
-            value: isClass ? { className: variable.name, properties: list } : list,
-        };
+    const heapValue = {
+        type: getCorrectHeapType(variable, isClass),
+        name: nameOfInstance,
+        value: getCorrectHeapValue(variable, list, isClass),
+    };
 
     return [
         heapValue,
@@ -130,25 +119,41 @@ async function createHeapVariable(variable: Variable, session: vscode.DebugSessi
     ] as [HeapValue, Array<RawHeapValue>];
 }
 
+function addNewElementToList(isMapType: boolean, list: Map<string, Value> | Value[], actualVariable: Variable) {
+    if (isMapType) {
+        (list as Map<string, Value>).set(actualVariable.name, VariableMapper.toValue(actualVariable))
+    } else {
+        (list as Array<Value>).push(VariableMapper.toValue(actualVariable));
+    }
+}
+
+function getCorrectHeapType(variable: Variable, isClass: boolean): string {
+    if (isClass) {
+        return 'class';
+    }
+    return variable.type;
+}
+
+function getCorrectHeapValue(variable: Variable, list: Map<string, Value> | Value[], isClass: boolean) {
+    if (isClass) {
+        return {
+            className: variable.name,
+            properties: list
+        };
+    }
+    return list;
+}
+
 async function createInnerHeapVariable(variable: Variable, session: vscode.DebugSession, referenceMap: Map<number, Variable[]>, visitedSet: Set<number> = new Set<number>): Promise<RawHeapValue[]> {
     let rawHeapValues = new Array<RawHeapValue>();
     let heapValue: HeapV | undefined = undefined;
-    let listForDepth: Variable[];
-    let nameOfInstance: string | undefined;
-    if (referenceMap.has(variable.variablesReference)) {
-        listForDepth = referenceMap.get(variable.variablesReference)!;
-    } else {
-        listForDepth = await variablesRequest(session, variable.variablesReference);
-        referenceMap.set(variable.variablesReference, listForDepth);
-    }
-
-    if (!Object.values(BasicTypes).includes(variable.type)) {
-        nameOfInstance = variable.type;
-        variable.type = 'instance';
-    }
+    let listForDepth: Variable[] = await getListForDepth(variable, referenceMap, session);
+    let nameOfInstance: string | undefined = ifIsInstanceGetName(variable);
 
     do {
         const [actualVariable, ...remainingVariables] = listForDepth;
+        listForDepth = remainingVariables;
+
         const variablesReference = actualVariable.variablesReference;
         if (!visitedSet.has(variablesReference)) {
             visitedSet.add(actualVariable.variablesReference);
@@ -160,8 +165,6 @@ async function createInnerHeapVariable(variable: Variable, session: vscode.Debug
         }
 
         heapValue = getUpdateForHeapV(variable, actualVariable, heapValue, VariableMapper.toValue(actualVariable));
-
-        listForDepth = remainingVariables;
     } while (listForDepth.length > 0);
 
     return rawHeapValues.concat({
@@ -170,6 +173,23 @@ async function createInnerHeapVariable(variable: Variable, session: vscode.Debug
         name: nameOfInstance,
         value: heapValue
     } as RawHeapValue);
+}
+
+function ifIsInstanceGetName(variable: Variable) {
+    if (!Object.values(BasicTypes).includes(variable.type)) {
+        const nameOfInstance = variable.type;
+        variable.type = 'instance';
+        return nameOfInstance;
+    }
+}
+
+async function getListForDepth(variable: Variable, referenceMap: Map<number, Variable[]>, session: vscode.DebugSession) {
+    if (referenceMap.has(variable.variablesReference)) {
+        return referenceMap.get(variable.variablesReference)!;
+    }
+    const listForDepth = await variablesRequest(session, variable.variablesReference);
+    referenceMap.set(variable.variablesReference, listForDepth);
+    return listForDepth;
 }
 
 function getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
@@ -182,8 +202,8 @@ function getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualH
                 : Array.of(value);
         case 'dict':
             return actualHeapV
-                ? (actualHeapV as Map<any, Value>).set(value.value /* FIXME if ie a tuple is key its not mapped */, value)
-                : new Map<any, Value>().set(value.value /* FIXME if ie a tuple is key its not mapped */, value);
+                ? (actualHeapV as Map<any, Value>).set(value.value, value)
+                : new Map<any, Value>().set(value.value, value);
         case 'class':
             return { className: '', properties: new Map<string, Value>() };
         case 'type':
