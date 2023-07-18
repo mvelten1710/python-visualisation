@@ -61,12 +61,20 @@ export class HTMLGenerator {
         let result = '';
         switch (heapValue.type) {
             case 'dict':
-            case 'map':
-                const dictKeys = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[0]));
-                const dictValues = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[1]));
+                const dictKeys = Array.from(Object.keys(heapValue.value));
+                const dictValues = Array.from(Object.values(heapValue.value));
                 result = `
                     <div class="column" id="heapEndPointer${name}">
                         ${dictKeys.map((key, index) => this.dictValue(key, dictValues[index])).join('')}
+                    </div>
+                `;
+                break;
+            case 'map':
+                const mapKeys = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[0]));
+                const mapValues = Array.from((heapValue.value as Array<[Value, Value]>).map((arrayTuple) => arrayTuple[1]));
+                result = `
+                    <div class="column" id="heapEndPointer${name}">
+                        ${mapKeys.map((key, index) => this.dictValue(key, mapValues[index])).join('')}
                     </div>
                 `;
                 break;
