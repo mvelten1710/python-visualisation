@@ -12,6 +12,7 @@ export class VisualizationPanel {
   private readonly _lineScript: vscode.Uri;
   private readonly _trace: FrontendTrace;
   private _traceIndex: number;
+  private _fileTextEditor: vscode.TextEditor;
 
   private constructor(context: vscode.ExtensionContext, trace: BackendTrace) {
     this._trace = (new HTMLGenerator(trace)).generateHTML();
@@ -35,6 +36,7 @@ export class VisualizationPanel {
     this._script = panel.webview.asWebviewUri(scriptFile);
     this._lineScript = panel.webview.asWebviewUri(lineFile);
     this._panel = panel;
+    this._fileTextEditor = vscode.window.activeTextEditor!;
 
     this._panel.onDidChangeViewState(async (e) => {
       if (e.webviewPanel.active) {
@@ -51,7 +53,7 @@ export class VisualizationPanel {
       context.subscriptions
     );
 
-    // TODO irgendwas mit api dass fenster switched dann aufhören zu vizzen und dann wieder back active wenn wieder das hier aktiv ist
+    vscode.window.onDidChangeActiveTextEditor(_ => this.updateLineHighlight(), undefined, context.subscriptions);
 
     // Message Receivers
     this._panel.webview.onDidReceiveMessage(
@@ -137,11 +139,9 @@ export class VisualizationPanel {
   }
 
   private updateLineHighlight(remove: boolean = false) {
-    // Can be undefined if no editor has focus
-    // FIXME: Better editor selection for line highlighting
-    const openEditors = this.getOpenEditors();
-    if (openEditors.length !== 1) { return; }
-    const editor = openEditors[0];
+    const editor = vscode.window.visibleTextEditors.filter(
+      editor => editor.document.uri === this._fileTextEditor.document.uri
+    )[0];
 
     if (remove) {
       editor.setDecorations(nextLineExecuteHighlightType, []);
@@ -225,10 +225,6 @@ export class VisualizationPanel {
           break;
       }
     };
-  }
-
-  private getOpenEditors(): readonly vscode.TextEditor[] {
-    return vscode.window.visibleTextEditors;
   }
 
   private createDecorationOptions(range: vscode.Range): vscode.DecorationOptions[] {
