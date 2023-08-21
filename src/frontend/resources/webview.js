@@ -14,6 +14,7 @@ window.addEventListener("message", (event) => {
     case "updateButtons":
       document.querySelector("#nextButton").disabled = !message.next;
       document.querySelector("#prevButton").disabled = !message.prev;
+      document.querySelector("#firstButton").disabled = !message.first;
       document.querySelector("#lastButton").disabled = !message.last;
       break;
     case "updateContent":
@@ -71,9 +72,8 @@ function updateIntend(traceElem) {
   const heapTags = traceElem[2].match(/(?<=startPointer)[0-9]+/g);
   if (heapTags) {
     heapTags.forEach((tag) => {
-      document
-        .getElementById("objectItem" + tag)
-        .classList.add("object-intendation");
+      const element = document.getElementById("objectItem" + tag);
+      if (element) { element.classList.add("object-intendation"); }
     });
   }
 }
@@ -92,19 +92,21 @@ function updateRefArrows(traceElem) {
     return;
   }
 
-  refTags = tags.filter((tag) => tag.elem1 && tag.elem2).map((tag) => {
-    return new LeaderLine(tag.elem1, tag.elem2, {
-      size: 2,
-      path: "magnet",
-      startSocket: "right",
-      endSocket: "left",
-      startPlug: "square",
-      startSocketGravity: [50, -10],
-      endSocketGravity: [-5, -5],
-      endPlug: "arrow1",
-      color: getColor(tag),
+  refTags = tags
+    .filter((tag) => tag.elem1 && tag.elem2)
+    .map((tag) => {
+      return new LeaderLine(tag.elem1, tag.elem2, {
+        size: 2,
+        path: "magnet",
+        startSocket: "right",
+        endSocket: "left",
+        startPlug: "square",
+        startSocketGravity: [50, -10],
+        endSocketGravity: [-5, -5],
+        endPlug: "arrow1",
+        color: getColor(tag),
+      });
     });
-  });
 }
 
 /**
@@ -163,6 +165,7 @@ function onLoad() {
   document.querySelector("#nextButton").disabled = false;
   document.querySelector("#lastButton").disabled = false;
   document.querySelector("#prevButton").disabled = true;
+  document.querySelector("#firstButton").disabled = true;
 }
 
 async function onClick(type) {
