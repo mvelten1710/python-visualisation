@@ -43,7 +43,7 @@ export function registerDebugAdapterTracker(
     });
 }
 
-export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLanguages) {
+export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLanguages): vscode.DebugConfiguration {
     return {
         name: `Debugging File`,
         type: language,
