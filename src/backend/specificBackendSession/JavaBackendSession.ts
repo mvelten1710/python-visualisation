@@ -4,7 +4,6 @@ import * as VariableMapper from "../VariableMapper";
 import { ILanguageBackendSession } from "../ILanguageBackendSession";
 
 enum NumberClasses { 'Number', 'Byte', 'Short', 'Integer', 'Long', 'Float', 'Double', 'BigDecimal' }
-// let lastVariables: string[] = [];
 
 export const javaBackendSession: ILanguageBackendSession = {
     createStackAndHeap: async (
@@ -313,7 +312,7 @@ async function createHashMapHeapValues(variable: Variable, session: DebugSession
         mapOfHashMapValues.push([
             keyIsString ? (realKey as [Value, RawHeapValue])[0] : VariableMapper.toValue(key),
             valueIsString ? (realValue as [Value, RawHeapValue])[0] : VariableMapper.toValue(value)
-            ]);
+        ]);
     };
 
     rawHeapValues.push({
@@ -363,9 +362,18 @@ function isWrapper(variable: Variable): boolean {
 }
 
 function getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualHeapV: HeapV | undefined, value: Value): HeapV {
+    const isClass = variable.name === 'this' || !isKnownType(variable.type);
+    const className = variable.type;
+    if (isClass) { variable.type = 'class'; }
+
     switch (variable.type) {
         case 'class': // TODO check appearence
-            return { className: '', properties: new Map<string, Value>() };
+            if (actualHeapV) {
+                const newProperties = (actualHeapV as ClassValue).properties.set(actualVariable.name, value);
+                const oldClassName = (actualHeapV as ClassValue).className;
+                return { className: oldClassName , properties: newProperties };
+            }
+            return { className: className, properties: new Map<string, Value>().set(actualVariable.name, value) };
         case 'instance': // TODO check
             return actualHeapV
                 ? (actualHeapV as Map<string, Value>).set(actualVariable.name, value)
