@@ -3,75 +3,75 @@ import * as VariableMapper from "../../backend/VariableMapper";
 import { describe, it } from 'mocha';
 
 suite('A VariableMapper when', () => {
-    describe("mapping a variable toValue", function () {
-        it("should return correct int Value type when int is given", function () {
-            const testVariable: Variable = {
-                evaluateName: "",
-                name: "",
-                value: "1",
-                type: "int",
-                variablesReference: 0
-            };
+    describe.only("mapping a variable toValue", () => {
+        const variables = [
+            ['byte', 1],
+            ['short', 12],
+            ['int', 122],
+            ['long', 1233232323],
+            ['float', 123145.982],
+            ['double', 11123.223],
+            ['number', 1.9217398],
+            ['char', 'c'],
+            ['str', "HelloWorld!"],
+            ['bool', "true"]
+        ];
+        variables.forEach(([type, value]) => {
+            it(`should return correct ${type} Value type when ${type} is given`, () => {
+                const testVariable: Variable = {
+                    evaluateName: "",
+                    name: "",
+                    value: `${value}`,
+                    type: `${type}`,
+                    variablesReference: 0
+                };
 
-            const result = VariableMapper.toValue(testVariable);
-            assert.deepEqual(result, { type: 'int', value: 1 });
+                const result = VariableMapper.toValue(testVariable);
+
+                assert.deepEqual(result, { type: type, value: value });
+            });
         });
 
-        it("should return correct float Value type when float is given", function () {
+        it("should return a none when NoneType is given", () => {
             const testVariable: Variable = {
                 evaluateName: "",
                 name: "",
-                value: "1",
-                type: "float",
-                variablesReference: 0
-            };
-
-            const result = VariableMapper.toValue(testVariable);
-
-            assert.deepEqual(result, { type: 'float', value: 1 });
-
-        });
-
-        it("should return correct NoneType Value type when None is given", function () {
-            const testVariable: Variable = {
-                evaluateName: "",
-                name: "",
-                value: "None",
-                type: "NoneType",
-                variablesReference: 0
-            };
-
-            const result = VariableMapper.toValue(testVariable);
-
-            assert.deepEqual(result, { type: 'none', value: "None" });
-        });
-
-        it("should return correct string Value type when string is given", function () {
-            const testVariable: Variable = {
-                evaluateName: "",
-                name: "",
-                value: "Im a string",
-                type: "str",
+                value: "",
+                type: 'NoneType',
                 variablesReference: 0
             };
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.deepEqual(result, { type: 'str', value: "Im a string" });
+            assert.deepEqual(result, { type: 'none', value: 'None' });
         });
 
-        it("should return correct bool Value type when bool is given", function () {
+        it("should return a bool when boolean is given", () => {
             const testVariable: Variable = {
                 evaluateName: "",
                 name: "",
                 value: "true",
-                type: "bool",
+                type: 'boolean',
                 variablesReference: 0
             };
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.deepEqual(result, { type: 'bool', value: "true" });
+            assert.deepEqual(result, { type: 'bool', value: 'true' });
+        });
+
+        it("should return a ref when non primitive is given", () => {
+            const testVariable: Variable = {
+                evaluateName: "",
+                name: "",
+                value: "",
+                type: 'NonPrimitive',
+                variablesReference: 7
+            };
+
+            const result = VariableMapper.toValue(testVariable);
+
+            assert.deepEqual(result, { type: 'ref', value: 7 });
         });
     });
 });
