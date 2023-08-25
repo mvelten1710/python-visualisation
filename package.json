@@ -15,7 +15,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
-      "title": "Python Visualization",
+      "title": "ProgramFlow Visualization",
       "properties": {
         "programflow-visualization.outputBackendTrace": {
           "type": "boolean",
