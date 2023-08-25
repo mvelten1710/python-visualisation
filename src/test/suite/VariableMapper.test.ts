@@ -3,7 +3,7 @@ import * as VariableMapper from "../../backend/VariableMapper";
 import { describe, it } from 'mocha';
 
 suite('A VariableMapper when', () => {
-    describe.only("mapping a variable toValue", () => {
+    describe("mapping a variable toValue", () => {
         const variables = [
             ['byte', 1],
             ['short', 12],
