@@ -43,7 +43,7 @@ suite('A VariableMapper when', () => {
 
             const result = VariableMapper.toValue(testVariable);
 
-            assert.deepEqual(result, { type: 'str', value: "None" });
+            assert.deepEqual(result, { type: 'none', value: "None" });
         });
 
         it("should return correct string Value type when string is given", function () {

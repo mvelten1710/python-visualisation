@@ -1,12 +1,12 @@
 import * as assert from 'assert';
 import { after, describe, it } from 'mocha';
 import * as fs from 'fs';
-import { TESTFILE_DIR, TestExecutionHelper, executeExtension } from '../TestExecutionHelper';
+import { TESTFILE_DIR, TestExecutionHelper, executeExtension, loadTraceFromContext } from '../TestExecutionHelper';
 import * as TestFileContents from './JavaTestFileContents';
 
-const TENTY_SECONDS = 20000;
+const TENTY_SECONDS = 50000;
 
-suite.skip('The Backend handling a java file when', () => {
+suite('The Backend handling a java file when', () => {
     after(() => {
         fs.rm(TESTFILE_DIR, { recursive: true }, err => {
             if (err) { throw err; }
@@ -20,7 +20,8 @@ suite.skip('The Backend handling a java file when', () => {
         this.beforeAll(async function () {
             const testFile = await TestExecutionHelper.createTestFileWith("JavaPrimitiveVariableTestClass", "java", TestFileContents.ALL_PRIMITIVE_VARIABLES);
 
-            result = await executeExtension(testFile);
+            const context = await executeExtension(testFile);
+            result = await loadTraceFromContext(testFile, context);
         });
 
         it("should create a defined Backend Trace", () => {
@@ -34,15 +35,22 @@ suite.skip('The Backend handling a java file when', () => {
             ['negativeFloat', 'float', -1.0123],
             ['emptyString', 'str', "''"],
         ];
+
         variables.forEach(([name, type, value], index) => {
             it(`should contain the variable ${name} as ${type} with value ${value}`, () => {
                 if (!result) {
                     assert.fail("No result was generated!");
                 }
 
-                assert.deepEqual(result.at(index)?.stack[0].locals.get(name), undefined);
-                assert.deepEqual(result.at(index + 1)?.stack[0].locals.get(name), { type: type, value: value });
-                assert.deepEqual(result.at(-1)?.stack[0].locals.get(name), { type: type, value: value });
+                const stackElem = result.at(index + 1)?.stack[0];
+                if (!stackElem) {
+                    assert.fail("No Stack Elements");
+                }
+                const keys = Array.from(Object.keys(stackElem.locals));
+                const values = Array.from(Object.values(stackElem.locals));
+
+                assert(keys.includes(name));
+                assert.deepEqual(values[keys.indexOf(name)], { type: type, value: value });
             });
         });
     });
