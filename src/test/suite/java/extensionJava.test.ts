@@ -1,14 +1,14 @@
 import * as assert from 'assert';
 import { after, describe, it } from 'mocha';
 import * as fs from 'fs';
-import { TESTFILE_DIR, TestExecutionHelper, executeExtension, loadTraceFromContext } from '../TestExecutionHelper';
+import { TESTFILE_DIR_JAVA, TestExecutionHelper, executeExtension, loadTraceFromContext } from '../TestExecutionHelper';
 import * as TestFileContents from './JavaTestFileContents';
 
 const TENTY_SECONDS = 50000;
 
 suite('The Backend handling a java file when', () => {
     after(() => {
-        fs.rm(TESTFILE_DIR, { recursive: true }, err => {
+        fs.rm(TESTFILE_DIR_JAVA, { recursive: true }, err => {
             if (err) { throw err; }
         });
     });
@@ -18,7 +18,7 @@ suite('The Backend handling a java file when', () => {
 
         let result: BackendTrace | undefined;
         this.beforeAll(async function () {
-            const testFile = await TestExecutionHelper.createTestFileWith("JavaPrimitiveVariableTestClass", "java", TestFileContents.ALL_PRIMITIVE_VARIABLES);
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_JAVA, "JavaPrimitiveVariableTestClass", "java", TestFileContents.ALL_PRIMITIVE_VARIABLES);
 
             const context = await executeExtension(testFile);
             result = await loadTraceFromContext(testFile, context);
@@ -29,11 +29,21 @@ suite('The Backend handling a java file when', () => {
         });
 
         const variables: Array<[string, string, number | string]> = [
+            ['positiveByte', 'byte', 1],
+            ['negativeByte', 'byte', -1],
+            ['positiveShort', 'short', 150],
+            ['negativeShort', 'short', -150],
             ['positiveInt', 'int', 55555],
             ['negativeInt', 'int', -55555],
+            ['positiveLong', 'long', 2947483647],
+            ['negativeLong', 'long', -2947483647],
             ['positiveFloat', 'float', 1.0123],
             ['negativeFloat', 'float', -1.0123],
-            ['emptyString', 'str', "''"],
+            ['positiveDouble', 'double', 1.01234],
+            ['negativeDouble', 'double', -1.01234],
+            ['fullChar', 'char', 'a'],
+            ['trueBool', 'bool', 'true'],
+            ['falseBool', 'bool', 'false'],
         ];
 
         variables.forEach(([name, type, value], index) => {
@@ -42,16 +52,21 @@ suite('The Backend handling a java file when', () => {
                     assert.fail("No result was generated!");
                 }
 
-                const stackElem = result.at(index + 1)?.stack[0];
-                if (!stackElem) {
+                const stack = result.at(index + 1)?.stack[0];
+                if (!stack) {
                     assert.fail("No Stack Elements");
                 }
-                const keys = Array.from(Object.keys(stackElem.locals));
-                const values = Array.from(Object.values(stackElem.locals));
-
-                assert(keys.includes(name));
-                assert.deepEqual(values[keys.indexOf(name)], { type: type, value: value });
+               
+                stackContainsVariable([name, type, value], stack);
             });
         });
     });
 });
+
+function stackContainsVariable([name, type, value]: [string, string, string | number], stack: any) {
+    const keys = Array.from(Object.keys(stack.locals));
+    const values = Array.from(Object.values(stack.locals));
+
+    assert(keys.includes(name));
+    assert.deepEqual(values[keys.indexOf(name)], { type: type, value: value });
+}

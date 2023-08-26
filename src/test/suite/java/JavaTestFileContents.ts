@@ -14,8 +14,6 @@ public class JavaPrimitiveVariableTestClass {
         double positiveDouble = 1.01234d;
         double negativeDouble = -1.01234d;
         char fullChar = 'a';
-        String emptyString = "";
-        String fullString = "Hello World!";
         boolean trueBool = true;
         boolean falseBool = false;
     }

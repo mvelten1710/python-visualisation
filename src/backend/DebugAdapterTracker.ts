@@ -50,7 +50,8 @@ export function getDebugConfigurationFor(file: vscode.Uri, language: SupportedLa
         request: 'launch',
         program: file?.fsPath ?? `${file}`,
         console: 'integratedTerminal',
-        stopOnEntry: true
+        stopOnEntry: true,
+        mainClass: `${file.fsPath}`,
         // logToFile: true, // Only activate if problems with debugger occur
     };
 }

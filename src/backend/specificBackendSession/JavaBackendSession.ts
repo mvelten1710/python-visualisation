@@ -367,7 +367,7 @@ function getUpdateForHeapV(variable: Variable, actualVariable: Variable, actualH
     if (isClass) { variable.type = 'class'; }
 
     switch (variable.type) {
-        case 'class': // TODO check appearence
+        case 'class':
             if (actualHeapV) {
                 const newProperties = (actualHeapV as ClassValue).properties.set(actualVariable.name, value);
                 const oldClassName = (actualHeapV as ClassValue).className;

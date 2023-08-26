@@ -4,10 +4,12 @@ import util = require('util');
 import { Commands, Variables } from '../../constants';
 
 export const TESTFILE_DIR: string = path.join(path.resolve(__dirname), "testfiles");
+export const TESTFILE_DIR_JAVA: string = path.join(path.resolve(__dirname), "testfiles/java");
+export const TESTFILE_DIR_PYTHON: string = path.join(path.resolve(__dirname), "testfiles/python");
 
 export class TestExecutionHelper {
-    public static async createTestFileWith(fileName: string, fileType: string, content: string): Promise<Uri> {
-        const testFileUri = Uri.file(path.join(TESTFILE_DIR + `/${fileName}/${fileName}.${fileType}`));
+    public static async createTestFileWith(path: string, fileName: string, fileType: string, content: string): Promise<Uri> {
+        const testFileUri = Uri.file(path + `/${fileName}.${fileType}`);
 
         const utf8Content = new util.TextEncoder().encode(content);
         await workspace.fs.writeFile(testFileUri, utf8Content);

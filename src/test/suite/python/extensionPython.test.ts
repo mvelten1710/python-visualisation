@@ -1,14 +1,14 @@
 import * as assert from 'assert';
 import { after, describe, it } from 'mocha';
 import * as fs from 'fs';
-import { TESTFILE_DIR, TestExecutionHelper, executeExtension, loadTraceFromContext } from '../TestExecutionHelper';
+import { TESTFILE_DIR_PYTHON, TestExecutionHelper, executeExtension, loadTraceFromContext } from '../TestExecutionHelper';
 import * as TestFileContents from './PythonTestFileContents';
 
 const TENTY_SECONDS = 20000;
 
 suite('The Backend handling a python file when', () => {
   after(() => {
-    fs.rm(TESTFILE_DIR, { recursive: true }, err => {
+    fs.rm(TESTFILE_DIR_PYTHON, { recursive: true }, err => {
       if (err) { throw err; }
     });
   });
@@ -18,7 +18,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("allPrimitiveVariables", "py", TestFileContents.ALL_PRIMITIVE_VARIABLES);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "allPrimitiveVariables", "py", TestFileContents.ALL_PRIMITIVE_VARIABLES);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -61,7 +61,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("lists", "py", TestFileContents.LISTS);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "lists", "py", TestFileContents.LISTS);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -103,7 +103,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("tuples", "py", TestFileContents.TUPLES);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "tuples", "py", TestFileContents.TUPLES);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -145,7 +145,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("sets", "py", TestFileContents.SETS);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "sets", "py", TestFileContents.SETS);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -184,7 +184,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("dicts", "py", TestFileContents.DICTS);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON, "dicts", "py", TestFileContents.DICTS);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -225,7 +225,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("classes", "py", TestFileContents.CLASSES);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON, "classes", "py", TestFileContents.CLASSES);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -264,7 +264,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("mixed_types", "py", TestFileContents.MIXED_TYPES);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "mixed_types", "py", TestFileContents.MIXED_TYPES);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);
@@ -305,7 +305,7 @@ suite('The Backend handling a python file when', () => {
 
     let result: BackendTrace | undefined;
     this.beforeAll(async function () {
-      const testFile = await TestExecutionHelper.createTestFileWith("infinite_references", "py", TestFileContents.INFINITE_REFERENCES);
+      const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR_PYTHON,  "infinite_references", "py", TestFileContents.INFINITE_REFERENCES);
 
       const context = await executeExtension(testFile);
       result = await loadTraceFromContext(testFile, context);

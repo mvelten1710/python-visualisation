@@ -4,7 +4,6 @@ import { after, describe, it } from 'mocha';
 import * as vscode from 'vscode';
 import * as FileHandler from '../../FileHandler';
 import { TESTFILE_DIR, TestExecutionHelper } from './TestExecutionHelper';
-import path = require('path');
 import util = require('util');
 
 suite('A FileHandler when', () => {
@@ -17,7 +16,7 @@ suite('A FileHandler when', () => {
     describe("getContentOf a file", function () {
         it("should return correct content of the file", async function () {
             const fileContent = "Test!\nThis is the content of a test file!\nWith numbers 12345\n";
-            const testFile = await TestExecutionHelper.createTestFileWith("SampleContentFile", "txt", fileContent);
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR, "SampleContentFile", "txt", fileContent);
             if (!testFile) {
                 this.skip();
             }
@@ -30,14 +29,14 @@ suite('A FileHandler when', () => {
 
     describe("deleteFile", function () {
         it("should delete the file", async function () {
-            const testFile = await TestExecutionHelper.createTestFileWith("SampleDeleteFile", "txt", '');
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR, "SampleDeleteFile", "txt", '');
             if (!testFile) {
                 this.skip();
             }
 
             await FileHandler.deleteFile(testFile);
 
-            fs.readdir(path.join(TESTFILE_DIR, `/SampleDeleteFile/`), (err, fileNames: string[]) => {
+            fs.readdir(TESTFILE_DIR, (err, fileNames: string[]) => {
                 if (err) { throw err; }
                 assert.ok(!fileNames.includes("SampleDeleteFile"));
             });
@@ -47,14 +46,14 @@ suite('A FileHandler when', () => {
     describe("duplicateFileAndExtendWithPass", function () {
         it("should create a file with the _debug as addition", async function () {
             const fileContent = "Test\n";
-            const testFile = await TestExecutionHelper.createTestFileWith("SampleTempFile", "py", fileContent);
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR, "SampleTempFile", "py", fileContent);
             if (!testFile) {
                 this.skip();
             }
 
             await FileHandler.duplicateFileAndExtendWithPass(testFile, fileContent);
 
-            fs.readdir(path.join(TESTFILE_DIR, `/SampleTempFile/`), (err, fileNames: string[]) => {
+            fs.readdir(TESTFILE_DIR, (err, fileNames: string[]) => {
                 if (err) { throw err; }
                 assert.ok(fileNames.includes("SampleTempFile_debug.py"));
             });
@@ -62,7 +61,7 @@ suite('A FileHandler when', () => {
 
         it("should add a pass at the end of the file", async function () {
             const fileContent = "Test\n";
-            const testFile = await TestExecutionHelper.createTestFileWith("SampleTempFile", "py", fileContent);
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR, "SampleTempFile", "py", fileContent);
             if (!testFile) {
                 this.skip();
             }
@@ -79,7 +78,7 @@ suite('A FileHandler when', () => {
 
     describe("createBackendTraceOutput", function () {
         it("should create correct named file", async function () {
-            const testFile = await TestExecutionHelper.createTestFileWith("SampleTraceFile", "py", '');
+            const testFile = await TestExecutionHelper.createTestFileWith(TESTFILE_DIR, "SampleTraceFile", "py", '');
             if (!testFile) {
                 this.skip();
             }
@@ -87,7 +86,7 @@ suite('A FileHandler when', () => {
 
             await FileHandler.createBackendTraceOutput(backendTrace, testFile);
 
-            fs.readdir(path.join(TESTFILE_DIR, `/SampleTraceFile/`), (err, fileNames: string[]) => {
+            fs.readdir(TESTFILE_DIR, (err, fileNames: string[]) => {
                 if (err) { throw err; }
                 assert.ok(fileNames.includes("backend_trace_SampleTraceFile.json"));
             });
